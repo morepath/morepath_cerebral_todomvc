@@ -1,0 +1,44 @@
+{
+  "name": "morepath_cerebral_todomvc",
+  "version": "0.1.0",
+  "description": "Hypermedia todomvc application powered with morepath and cerebral",
+  "scripts": {
+    "start": "webpack-dev-server --progress --colors --port 3000",
+    "build": "webpack",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d static/",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/henri-hulski/morepath_cerebral_todomvc.git"
+  },
+  "author": "Henri Hulski <henri.hulski@gazeta.pl>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/henri-hulski/morepath_cerebral_todomvc/issues"
+  },
+  "homepage": "https://github.com/henri-hulski/morepath_cerebral_todomvc#readme",
+  "dependencies": {
+    "babel-loader": "^5.3.2",
+    "cerebral": "^0.33.16",
+    "cerebral-addons": "^0.4.9",
+    "cerebral-model-baobab": "^0.4.6",
+    "cerebral-module-devtools": "^0.5.4",
+    "cerebral-module-router": "^0.12.4",
+    "cerebral-module-http": "^0.1.1",
+    "cerebral-view-react": "^0.11.1",
+    "classnames": "^2.2.3",
+    "css-loader": "^0.23.1",
+    "file-loader": "^0.8.5",
+    "react": "^0.14.7",
+    "react-dom": "^0.14.7",
+    "style-loader": "^0.13.0",
+    "todomvc-app-css": "^1.0.4",
+    "todomvc-common": "^1.0.2",
+    "webpack": "^1.12.11"
+  },
+  "devDependencies": {
+    "gh-pages": "^0.9.0"
+  }
+}

@@ -1,0 +1,12 @@
+.installed.cfg
+*.egg-info
+parts
+bin
+eggs
+develop-eggs
+node_modules
+*.pyc
+*.pyo
+__pycache__
+.cache
+venv
