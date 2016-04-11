@@ -6,7 +6,7 @@ Cerebral TodoMVC with a Morepath REST backend.
 Morepath backend
 ----------------
 
-The backend ist based on `morepath_reactredux <https://github.com/henri-hulski/morepath_cerebral_todomvc>`_.
+The backend ist based on `morepath_reactredux <https://github.com/morepath/morepath_reactredux>`_.
 
 You can run the code using a clean Python environment (using virtualenv)::
 
