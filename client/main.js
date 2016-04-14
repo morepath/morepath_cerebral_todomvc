@@ -23,14 +23,11 @@ controller.addModules({
   app: AppModule(),
 
   refs: Refs(),
-  http: Http({
-    baseUrl: '/api',
-  }),
+  http: Http(),
   devtools: Devtools(),
   router: Router({
     '/': 'app.footer.filterClicked',
   }, {
-    onlyHash: true,
     mapper: {query: true},
   }),
 });
