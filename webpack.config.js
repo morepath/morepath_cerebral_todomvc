@@ -15,8 +15,14 @@ var config = {
       loader: 'style!css'
     }, {
       test: /\.js?$/,
-      loader: 'babel?optional=es7.decorators',
-      include: src
+      loader: 'babel',
+      include: src,
+      query: {
+          cacheDirectory: true,
+          presets: ['es2015', 'react'],
+          plugins: ['transform-decorators-legacy']
+      }
+
     }]
   },
   resolve: {
