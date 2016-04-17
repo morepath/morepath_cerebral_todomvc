@@ -6,12 +6,12 @@ import isAllChecked from '../../computed/isAllChecked.js';
 import visibleTodos from '../../computed/visibleTodos.js';
 
 @Cerebral({
-  isAllChecked: isAllChecked,
-  todos: visibleTodos
+  isAllChecked,
+  todos: visibleTodos,
 })
 class List extends React.Component {
   renderTodo(todo, index) {
-    return <Todo key={index} index={index} todo={todo}/>
+    return <Todo key={index} index={index} todo={todo} />;
   }
 
   render() {
