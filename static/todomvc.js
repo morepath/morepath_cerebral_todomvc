@@ -66,33 +66,33 @@
 	
 	var _cerebral2 = _interopRequireDefault(_cerebral);
 	
-	var _cerebralModelBaobab = __webpack_require__(230);
+	var _cerebralModelBaobab = __webpack_require__(229);
 	
 	var _cerebralModelBaobab2 = _interopRequireDefault(_cerebralModelBaobab);
 	
-	var _cerebralModuleHttp = __webpack_require__(239);
+	var _cerebralModuleHttp = __webpack_require__(238);
 	
 	var _cerebralModuleHttp2 = _interopRequireDefault(_cerebralModuleHttp);
 	
-	var _cerebralViewReact = __webpack_require__(257);
+	var _cerebralViewReact = __webpack_require__(256);
 	
-	var _App = __webpack_require__(266);
+	var _App = __webpack_require__(265);
 	
 	var _App2 = _interopRequireDefault(_App);
 	
-	var _App3 = __webpack_require__(275);
+	var _App3 = __webpack_require__(274);
 	
 	var _App4 = _interopRequireDefault(_App3);
 	
-	var _Refs = __webpack_require__(319);
+	var _Refs = __webpack_require__(318);
 	
 	var _Refs2 = _interopRequireDefault(_Refs);
 	
-	var _cerebralModuleDevtools = __webpack_require__(320);
+	var _cerebralModuleDevtools = __webpack_require__(319);
 	
 	var _cerebralModuleDevtools2 = _interopRequireDefault(_cerebralModuleDevtools);
 	
-	var _cerebralModuleRouter = __webpack_require__(325);
+	var _cerebralModuleRouter = __webpack_require__(330);
 	
 	var _cerebralModuleRouter2 = _interopRequireDefault(_cerebralModuleRouter);
 	
@@ -20515,25 +20515,20 @@
 
 	var get = __webpack_require__(176)
 	var CreateSignalFactory = __webpack_require__(216)
-	var CreateRegisterModules = __webpack_require__(224)
+	var CreateRegisterModules = __webpack_require__(226)
 	var Compute = __webpack_require__(227)
 	var EventEmitter = __webpack_require__(228).EventEmitter
 	
-	var Recorder = __webpack_require__(229)
-	
-	var Controller = function (Model, services) {
-	  if (services) {
-	    console.warn('Passing services to controller is DEPRECATED. Please add them to controller with controller.addServices({})')
-	  }
-	
+	var Controller = function (Model) {
 	  var controller = new EventEmitter()
 	  var model = Model(controller)
 	  var compute = Compute(model)
 	  var signals = {}
 	  var modules = {}
-	  services = services || {}
+	  var services = {}
+	  var externalContextProviders = {__cerebral_global__: []}
 	
-	  var signalFactory = CreateSignalFactory(controller, model, services, compute, modules)
+	  var signalFactory = CreateSignalFactory(controller, externalContextProviders)
 	  var signal = function () {
 	    var signalNamePath = arguments[0].split('.')
 	    var signalName = signalNamePath.pop()
@@ -20557,17 +20552,6 @@
 	    return service
 	  }
 	
-	  controller.signal = function () {
-	    console.warn('Cerebral: controller.signal() is DEPRECATED. Please use controller.addSignals() instead')
-	    signal.apply(null, arguments)
-	  }
-	  controller.signalSync = function () {
-	    console.warn('Cerebral: controller.signalSync() is DEPRECATED. Please use controller.addSignals({mySignal: {chain: [], sync: true}}) instead')
-	    var defaultOptions = arguments[2] || {}
-	    defaultOptions.isSync = true
-	    return signal(arguments[0], arguments[1], defaultOptions)
-	  }
-	
 	  controller.getSignals = function (path) {
 	    return path
 	      ? get(signals, path)
@@ -20577,6 +20561,9 @@
 	    return path
 	      ? get(services, path)
 	      : services
+	  }
+	  controller.getModel = function () {
+	    return model
 	  }
 	  controller.get = function () {
 	    if (typeof arguments[0] === 'function') {
@@ -20595,40 +20582,24 @@
 	  }
 	
 	  controller.addModules = CreateRegisterModules(controller, model, modules)
-	  controller.modules = function () {
-	    console.warn('Cerebral: controller.modules() is DEPRECATED. Please use controller.addModules() instead')
-	    controller.addModules.apply(controller, arguments)
-	  }
 	
 	  controller.addSignals = function (signals, options) {
-	    Object.keys(signals).forEach(function (key) {
-	      if (signals[key].chain) {
-	        options = Object.keys(signals[key]).reduce(function (options, configKey) {
-	          if (configKey !== 'chain') {
-	            options[configKey] = signals[key][configKey]
+	    Object.keys(signals).forEach(function (name) {
+	      if (signals[name].chain) {
+	        var optionsCopy = Object.keys(options || {}).reduce(function (optionsCopy, key) {
+	          optionsCopy[key] = options[key]
+	          return optionsCopy
+	        }, {})
+	        var signalOptions = Object.keys(signals[name]).reduce(function (signalOptions, key) {
+	          if (key !== 'chain') {
+	            signalOptions[key] = signals[name][key]
 	          }
-	          if (configKey === 'sync') {
-	            console.warn('Cerebral: sync signal option is DEPRECATED. Please use immediate option instead.')
-	            options.isSync = signals[key][configKey]
-	          }
-	          return options
-	        }, options || {})
-	        signal(key, signals[key].chain, options)
+	          return signalOptions
+	        }, optionsCopy)
+	        signal(name, signals[name].chain, signalOptions)
 	      } else {
-	        signal(key, signals[key], options)
+	        signal(name, signals[name], options)
 	      }
-	    })
-	  }
-	  controller.signals = function () {
-	    console.warn('Cerebral: controller.signals() is DEPRECATED. Please use controller.addSignals() instead')
-	    controller.addSignals.apply(controller, arguments)
-	  }
-	  controller.signalsSync = function (signals, options) {
-	    console.warn('Cerebral: controller.signalsSync() is DEPRECATED. Please use controller.addSignals({mySignal: {chain: [], sync: true}}) instead')
-	    Object.keys(signals).forEach(function (key) {
-	      options = options || {}
-	      options.isSync = true
-	      signal(key, signals[key], options)
 	    })
 	  }
 	  controller.addServices = function (newServices) {
@@ -20637,13 +20608,17 @@
 	    })
 	    return controller.getServices()
 	  }
-	  controller.services = function (newServices) {
-	    console.warn('Cerebral: controller.services() is DEPRECATED. Please use controller.addServices() instead')
-	    controller.addServices(newServices)
+	  controller.addContextProvider = function (provider, scope) {
+	    if (scope) {
+	      if (!externalContextProviders[scope]) {
+	        externalContextProviders[scope] = []
+	      }
+	      externalContextProviders[scope].push(provider)
+	    } else {
+	      externalContextProviders.__cerebral_global__.push(provider)
+	    }
+	    externalContextProviders[scope || '__cerebral_global__'].push(provider)
 	  }
-	
-	  // emulate loading recorder
-	  Recorder()({}, controller)
 	
 	  return controller
 	}
@@ -21937,17 +21912,19 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {var utils = __webpack_require__(217)
-	var createActionArgs = __webpack_require__(219)
-	var createNext = __webpack_require__(220)
-	var analyze = __webpack_require__(221)
-	var staticTree = __webpack_require__(222)
-	var createModulesArg = __webpack_require__(223)
+	var analyze = __webpack_require__(219)
+	var staticTree = __webpack_require__(220)
+	var createContext = __webpack_require__(221)
+	var inputProvider = __webpack_require__(222)
+	var stateProvider = __webpack_require__(223)
+	var servicesProvider = __webpack_require__(224)
+	var outputProvider = __webpack_require__(225)
 	
 	var requestAnimationFrame = global.requestAnimationFrame || function (cb) {
 	  setTimeout(cb, 0)
 	}
 	
-	module.exports = function (controller, model, services, compute, modules) {
+	module.exports = function (controller, externalContextProviders) {
 	  var currentlyRunningSignals = 0
 	  var batchedSignals = []
 	  var pending = false
@@ -21960,7 +21937,6 @@
 	    var args = [].slice.call(arguments)
 	    var signalName = args.shift()
 	    var defaultOptions = args[1] || {}
-	    defaultOptions.modulePath = defaultOptions.modulePath || []
 	
 	    var chain = args[0] || []
 	
@@ -21968,8 +21944,15 @@
 	      analyze(signalName, chain)
 	    }
 	
-	    var signalChain = function (payload, options) {
-	      options = options || {}
+	    var signalChain = function (signalPayload, passedOptions) {
+	      var defaultOptionsCopy = Object.keys(defaultOptions).reduce(function (defaultOptionsCopy, key) {
+	        defaultOptionsCopy[key] = defaultOptions[key]
+	        return defaultOptionsCopy
+	      }, {})
+	      var options = Object.keys(passedOptions || {}).reduce(function (defaultOptionsCopy, key) {
+	        defaultOptionsCopy[key] = passedOptions[key]
+	        return defaultOptionsCopy
+	      }, defaultOptionsCopy)
 	
 	      var tree = staticTree(signalChain.chain)
 	      var actions = tree.actions
@@ -21977,24 +21960,14 @@
 	      var signal = {
 	        name: signalName,
 	        start: null,
-	        isSync: defaultOptions.immediate || options.immediate,
-	        isRouted: options.isRouted || false, // will be removed
+	        isSync: options.immediate,
 	        isExecuting: false,
 	        isPrevented: false,
-	        isRecorded: options.isRecorded || false,
 	        branches: tree.branches,
-	        options: options,
 	        duration: 0,
-	        input: payload,
 	        preventSignalRun: function () {
-	          signal.isExecuting = false
-	          signal.isPrevented = true
+	          if (signal.isExecuting === false) signal.isPrevented = true
 	        }
-	      }
-	
-	      if (defaultOptions.isSync || options.isSync) {
-	        console.warn('Cerebral: isSync signal option is DEPRECATED. Please use immediate option instead.')
-	        signal.isSync = true
 	      }
 	
 	      var isPredefinedExecution = false
@@ -22002,13 +21975,9 @@
 	        signal.isSync = true
 	        signal.branches = options.branches
 	        isPredefinedExecution = true
-	        controller.emit('predefinedSignal', { signal: signal })
+	        controller.emit('predefinedSignal', { signal: signal, options: options, payload: signalPayload })
 	      } else {
-	        var prevIsSync = signal.isSync
-	        controller.emit('signalTrigger', { signal: signal })
-	        if (prevIsSync !== signal.isSync) {
-	          console.warn('Cerebral: You are running an older version of the cerebral-module-router. Please update the package')
-	        }
+	        controller.emit('signalTrigger', { signal: signal, options: options, payload: signalPayload })
 	      }
 	
 	      if (signal.isPrevented) {
@@ -22016,36 +21985,15 @@
 	      }
 	
 	      var runSignal = function () {
-	        // Accumulate the args in one object that will be passed
-	        // to each action
-	        var signalArgs = utils.merge({}, payload || {})
-	
-	        // Test payload
-	        if (utils.isDeveloping()) {
-	          try {
-	            JSON.stringify(signalArgs)
-	          } catch (e) {
-	            console.log('Not serializable', signalArgs)
-	            throw new Error('Cerebral - Could not serialize input to signal. Please check signal ' + signalName)
-	          }
-	        }
-	
 	        signal.start = Date.now()
 	        signal.isExecuting = true
 	
 	        if (!isPredefinedExecution) {
 	          currentlyRunningSignals++
-	          controller.emit('signalStart', {signal: signal})
+	          controller.emit('signalStart', {signal: signal, options: options, payload: signalPayload})
 	        }
 	
-	        if (signal.isPrevented) {
-	          console.warn('Cerebral: Preventing signal, ' + signal.name + ', after signalStart is deprecated. Use `signalTrigger` event instead.')
-	          currentlyRunningSignals--
-	          controller.emit('signalEnd', {signal: signal})
-	          return
-	        }
-	
-	        var runBranch = function (branch, index, start) {
+	        var runBranch = function (branch, index, start, payload) {
 	          var currentBranch = branch[index]
 	          if (!currentBranch && branch === signal.branches && !isPredefinedExecution) {
 	            // Might not be any actions passed
@@ -22055,15 +22003,14 @@
 	
 	            signal.isExecuting = false
 	            currentlyRunningSignals--
-	            controller.emit('signalEnd', {signal: signal})
-	            controller.emit('change', {signal: signal})
+	            controller.emit('signalEnd', {signal: signal, options: options, payload: payload})
+	            controller.emit('change', {signal: signal, options: options, payload: payload})
 	            return
 	          }
 	
 	          if (!currentBranch) {
 	            return
 	          }
-	
 	          if (Array.isArray(currentBranch)) {
 	            if (isPredefinedExecution) {
 	              currentBranch.forEach(function (action) {
@@ -22078,8 +22025,6 @@
 	                  })
 	                }
 	
-	                utils.merge(signalArgs, action.output)
-	
 	                if (action.outputPath) {
 	                  runBranch(action.outputs[action.outputPath], 0)
 	                }
@@ -22088,67 +22033,71 @@
 	              runBranch(branch, index + 1)
 	            } else {
 	              var promises = currentBranch.map(function (action) {
-	                controller.emit('actionStart', {action: action, signal: signal})
+	                var resolver = null
+	                var promise = new Promise(function (resolve) {
+	                  resolver = resolve
+	                })
+	                controller.emit('actionStart', {
+	                  action: action,
+	                  signal: signal,
+	                  options: options,
+	                  payload: payload
+	                })
 	                var actionFunc = actions[action.actionIndex]
-	                var inputArg = actionFunc.defaultInput ? utils.merge({}, actionFunc.defaultInput, signalArgs) : signalArgs
-	                var actionArgs = createActionArgs.async(action, inputArg, model, compute, services, Object.keys(modules))
 	
-	                if (utils.isDeveloping() && actionFunc.input) {
-	                  utils.verifyInput(action.name, signal.name, actionFunc.input, inputArg)
-	                }
+	                var contextProviders = [
+	                  inputProvider,
+	                  stateProvider,
+	                  servicesProvider,
+	                  outputProvider
+	                ].concat(utils.extractExternalContextProviders(externalContextProviders, options.modulePath))
+	                var context = createContext(contextProviders, {
+	                  action: action,
+	                  signal: signal,
+	                  options: options,
+	                  payload: payload,
+	                  resolve: resolver
+	                }, controller)
 	
 	                action.isExecuting = true
-	                action.input = utils.merge({}, inputArg)
-	                var next = createNext.async(actionFunc, signal.name)
-	                var modulesArg = createModulesArg(modules, actionArgs[1], actionArgs[2], signal.name, action.name)
-	                var actionArg = {
-	                  input: actionArgs[0],
-	                  state: actionArgs[1],
-	                  output: next.fn,
-	                  services: actionArgs[2],
-	                  modules: modulesArg,
-	                  module: defaultOptions.modulePath.reduce(function (modules, key) {
-	                    return modules[key]
-	                  }, modulesArg)
-	                }
 	
 	                if (utils.isDeveloping()) {
 	                  try {
-	                    actionFunc(actionArg)
+	                    actionFunc(context)
 	                  } catch (e) {
 	                    action.error = {
 	                      name: e.name,
 	                      message: e.message,
 	                      stack: actionFunc.toString()
 	                    }
-	                    controller.emit('signalError', {action: action, signal: signal})
-	                    controller.emit('change', {signal: signal})
+	                    controller.emit('signalError', {action: action, signal: signal, options: options, payload: payload})
+	                    controller.emit('change', {signal: signal, options: options, payload: payload})
 	                    throw e
 	                  }
 	                } else {
-	                  actionFunc(actionArg)
+	                  actionFunc(context)
 	                }
 	
-	                return next.promise.then(function (result) {
+	                return promise.then(function (resolvedAction) {
 	                  action.hasExecuted = true
 	                  action.isExecuting = false
-	                  action.output = utils.merge({}, result.arg)
-	                  utils.merge(signalArgs, result.arg)
 	
-	                  controller.emit('actionEnd', {action: action, signal: signal})
-	                  controller.emit('change', {signal: signal})
+	                  controller.emit('actionEnd', {action: action, signal: signal, options: options, payload: payload})
+	                  controller.emit('change', {signal: signal, options: options, payload: payload})
 	
-	                  if (result.path) {
-	                    action.outputPath = result.path
-	                    var branchResult = runBranch(action.outputs[result.path], 0, Date.now())
-	                    return branchResult
+	                  var newPayload = utils.merge({}, payload, resolvedAction.payload)
+	                  if (resolvedAction.path) {
+	                    action.outputPath = resolvedAction.path
+	                    return runBranch(action.outputs[resolvedAction.path], 0, Date.now(), newPayload)
 	                  }
+	
+	                  return newPayload
 	                })
 	              })
-	              controller.emit('change', {signal: signal})
+	              controller.emit('change', {signal: signal, options: options, payload: payload})
 	              return Promise.all(promises)
-	                .then(function () {
-	                  return runBranch(branch, index + 1, Date.now())
+	                .then(function (actionPayloads) {
+	                  return runBranch(branch, index + 1, Date.now(), utils.merge.apply(null, [{}, payload].concat(actionPayloads)))
 	                })
 	                .catch(function (error) {
 	                  // We just throw any unhandled errors
@@ -22158,9 +22107,10 @@
 	            }
 	          } else {
 	            var action = currentBranch
+	
 	            if (isPredefinedExecution) {
 	              action.mutations.forEach(function (mutation) {
-	                model.mutators[mutation.name].apply(null, [mutation.path.slice()].concat(mutation.args))
+	                controller.getModel().mutators[mutation.name].apply(null, [mutation.path.slice()].concat(mutation.args))
 	              })
 	
 	              if (action.outputPath) {
@@ -22169,89 +22119,75 @@
 	
 	              runBranch(branch, index + 1)
 	            } else {
-	              controller.emit('actionStart', {action: action, signal: signal})
-	
+	              controller.emit('actionStart', {action: action, signal: signal, options: options, payload: payload})
+	              var resolvedAction = {path: null, payload: {}}
+	              var resolver = function (resolvedResult) {
+	                resolvedAction = resolvedResult
+	              }
 	              var actionFunc = actions[action.actionIndex]
-	              var inputArg = actionFunc.defaultInput ? utils.merge({}, actionFunc.defaultInput, signalArgs) : signalArgs
-	              var actionArgs = createActionArgs.sync(action, inputArg, model, compute, services, Object.keys(modules))
 	
-	              if (utils.isDeveloping() && actionFunc.input) {
-	                utils.verifyInput(action.name, signal.name, actionFunc.input, inputArg)
-	              }
-	
-	              action.mutations = [] // Reset mutations array
-	              action.input = utils.merge({}, inputArg)
-	
-	              var next = createNext.sync(actionFunc, signal.name)
-	              var modulesArg = createModulesArg(modules, actionArgs[1], actionArgs[2], signal.name, action.name)
-	
-	              var actionArg = {
-	                input: actionArgs[0],
-	                state: actionArgs[1],
-	                output: next,
-	                services: actionArgs[2],
-	                modules: modulesArg,
-	                module: defaultOptions.modulePath.reduce(function (exportedModule, key) {
-	                  return exportedModule[key]
-	                }, modulesArg)
-	              }
+	              var contextProviders = [
+	                inputProvider,
+	                stateProvider,
+	                servicesProvider,
+	                outputProvider
+	              ].concat(utils.extractExternalContextProviders(externalContextProviders, options.modulePath))
+	              var context = createContext(contextProviders, {
+	                action: action,
+	                signal: signal,
+	                options: options,
+	                payload: payload,
+	                resolve: resolver
+	              }, controller)
 	
 	              if (utils.isDeveloping()) {
 	                try {
-	                  actionFunc(actionArg)
+	                  actionFunc(context)
 	                } catch (e) {
 	                  action.error = {
 	                    name: e.name,
 	                    message: e.message,
 	                    stack: e.stack
 	                  }
-	                  controller.emit('signalError', {action: action, signal: signal})
-	                  controller.emit('change', {signal: signal})
+	                  controller.emit('signalError', {action: action, signal: signal, options: options, payload: payload})
+	                  controller.emit('change', {signal: signal, options: options, payload: payload})
 	                  throw e
 	                }
 	              } else {
-	                actionFunc(actionArg)
+	                actionFunc(context)
 	              }
-	
-	              // TODO: Also add input here
-	
-	              var result = next._result || {}
-	              utils.merge(signalArgs, result.arg)
 	
 	              action.isExecuting = false
 	              action.hasExecuted = true
-	              action.output = utils.merge({}, result.arg)
 	
 	              if (!branch[index + 1] || Array.isArray(branch[index + 1])) {
 	                action.duration = Date.now() - start
 	              }
 	
-	              if (result.path) {
-	                action.outputPath = result.path
-	                var branchResult = runBranch(action.outputs[result.path], 0, start)
+	              var branchResult = null
+	              if (resolvedAction.path) {
+	                action.outputPath = resolvedAction.path
+	                branchResult = runBranch(action.outputs[resolvedAction.path], 0, start, utils.merge({}, payload, resolvedAction.payload))
 	                if (branchResult && branchResult.then) {
-	                  return branchResult.then(function () {
-	                    return runBranch(branch, index + 1, Date.now())
+	                  return branchResult.then(function (payload) {
+	                    return runBranch(branch, index + 1, Date.now(), utils.merge({}, payload, resolvedAction.payload))
 	                  })
 	                } else {
-	                  return runBranch(branch, index + 1, start)
+	                  return runBranch(branch, index + 1, start, utils.merge({}, payload, resolvedAction.payload))
 	                }
-	              } else if (result.then) {
-	                return result.then(function () {
-	                  controller.emit('actionEnd', {action: action, signal: signal})
-	
-	                  return runBranch(branch, index + 1, start)
-	                })
 	              } else {
-	                controller.emit('actionEnd', {action: action, signal: signal})
-	
-	                return runBranch(branch, index + 1, start)
+	                controller.emit('actionEnd', {action: action, signal: signal, options: options, payload: payload})
+	                var newPayload = utils.merge({}, payload, resolvedAction.payload)
+	                branchResult = runBranch(branch, index + 1, start, newPayload)
+	                if (!branchResult) {
+	                  return newPayload
+	                }
 	              }
 	            }
 	          }
 	        }
 	
-	        runBranch(signal.branches, 0, Date.now())
+	        runBranch(signal.branches, 0, Date.now(), signalPayload)
 	
 	        return
 	      }
@@ -22274,10 +22210,6 @@
 	      }
 	    }
 	    signalChain.chain = chain
-	    signalChain.sync = function (payload) {
-	      console.warn('Cerebral: Signal ' + signalName + ' uses signal.sync(), but it is DEPRECATED. Please use signal(payload, {immediate: true}) instead or define it as sync using object signal definition.')
-	      signalChain(payload, {immediate: true})
-	    }
 	    signalChain.signalName = signalName
 	
 	    return signalChain
@@ -22299,11 +22231,14 @@
 	    ret = ret.substr(0, ret.indexOf('('))
 	    return ret
 	  },
-	  merge: function (target, source) {
-	    source = source || {}
-	    return Object.keys(source).reduce(function (target, key) {
-	      target[key] = source[key]
-	      return target
+	  merge: function () {
+	    var args = [].slice.call(arguments)
+	    var target = args.shift()
+	    return args.reduce(function (target, source) {
+	      return Object.keys(source || {}).reduce(function (target, key) {
+	        target[key] = source[key]
+	        return target
+	      }, target)
 	    }, target)
 	  },
 	  hasLocalStorage: function () {
@@ -22384,6 +22319,14 @@
 	      return value
 	    }, value) : value
 	    return value
+	  },
+	  extractExternalContextProviders: function (providers, modulePath) {
+	    var extractedProviders = providers.__cerebral_global__
+	    if (modulePath && providers[modulePath.join('.')]) {
+	      return extractedProviders.concat(providers[modulePath.join('.')])
+	    }
+	
+	    return extractedProviders
 	  }
 	}
 	
@@ -22440,244 +22383,6 @@
 
 /***/ },
 /* 219 */
-/***/ function(module, exports) {
-
-	var createStateArg = function (action, model, isAsync, compute) {
-	  var createStateObject = function (parentPath) {
-	    var state = Object.keys(model.accessors || {}).reduce(function (state, accessor) {
-	      state[accessor] = function () {
-	        var args = [].slice.call(arguments)
-	        var path = []
-	        if (args[0] && Array.isArray(args[0])) {
-	          path = args.shift()
-	        } else if (args[0] && typeof args[0] === 'string') {
-	          path = args.shift().split('.')
-	        }
-	        if (accessor === 'get' && typeof arguments[0] === 'function') {
-	          return compute.getComputedValue(arguments[0])
-	        }
-	        return model.accessors[accessor].apply(null, [parentPath.concat(path)].concat(args))
-	      }
-	      return state
-	    }, {})
-	    Object.keys(model.mutators || {}).reduce(function (state, mutator) {
-	      state[mutator] = function () {
-	        if (isAsync) {
-	          throw new Error('Cerebral: You can not mutate state in async actions. Output values and set them with a sync action')
-	        }
-	        var path = []
-	        var args = [].slice.call(arguments)
-	        if (Array.isArray(args[0])) {
-	          path = args.shift()
-	        } else if (typeof args[0] === 'string') {
-	          path = args.shift().split('.')
-	        }
-	        action.mutations.push({
-	          name: mutator,
-	          path: parentPath.concat(path),
-	          args: args
-	        })
-	        return model.mutators[mutator].apply(null, [parentPath.concat(path)].concat(args))
-	      }
-	      return state
-	    }, state)
-	
-	    state.select = function (path) {
-	      return createStateObject(typeof path === 'string' ? path.split('.') : path)
-	    }
-	
-	    return state
-	  }
-	
-	  return createStateObject([])
-	}
-	
-	var convertServices = function (action, path, modulesPaths, services, proto) {
-	  return Object.keys(services).reduce(function (newservices, key) {
-	    path.push(key)
-	    if (
-	      typeof services[key] === 'function' &&
-	      services[key].constructor.name === 'Function' &&
-	      !Object.keys(services[key]).length &&
-	      (!services[key].prototype || !Object.keys(services[key].prototype).length)
-	    ) {
-	      var servicePath = path.slice()
-	      var method = servicePath.pop()
-	      newservices[key] = function () {
-	        action.serviceCalls.push({
-	          name: servicePath.join('.'),
-	          method: method,
-	          args: [].slice.call(arguments)
-	        })
-	        return services[key].apply(this, arguments)
-	      }
-	    } else if (
-	      typeof services[key] === 'object' &&
-	      !Array.isArray(services[key]) &&
-	      services[key] !== null &&
-	      modulesPaths.indexOf(path.join('.')) >= 0
-	    ) {
-	      newservices[key] = convertServices(action, path, modulesPaths, services[key], proto)
-	    } else {
-	      newservices[key] = services[key]
-	    }
-	    path.pop(key)
-	    return newservices
-	  }, {})
-	}
-	
-	var createServicesArg = function (action, services, modules) {
-	  var path = []
-	  return convertServices(action, path, modules, services)
-	}
-	
-	module.exports = {
-	  sync: function (action, signalArgs, model, compute, services, modulesPaths) {
-	    return [
-	      signalArgs,
-	      createStateArg(action, model, false, compute),
-	      createServicesArg(action, services, modulesPaths)
-	    ]
-	  },
-	  async: function (action, signalArgs, model, compute, services, modulesPaths) {
-	    return [
-	      signalArgs,
-	      createStateArg(action, model, true, compute),
-	      createServicesArg(action, services, modulesPaths)
-	    ]
-	  }
-	}
-
-
-/***/ },
-/* 220 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var utils = __webpack_require__(217)
-	var types = __webpack_require__(218)
-	
-	var validateOutput = function (action, path, arg, signalName) {
-	  if ((!action.output && !action.outputs) || Array.isArray(action.outputs)) {
-	    return
-	  }
-	
-	  var checkers = action.output || action.outputs[path || action.defaultOutput]
-	
-	  if (checkers === undefined) {
-	    return
-	  }
-	
-	  if (!arg) {
-	    throw new Error([
-	      'Cerebral: There is a wrong output of action "' +
-	      utils.getFunctionName(action) + '" ' +
-	      'in signal "' + signalName + '". You did not pass any values to the output'
-	    ].join(''))
-	  }
-	
-	  Object.keys(checkers).forEach(function (key) {
-	    if (!types(checkers[key], arg[key])) {
-	      throw new Error([
-	        'Cerebral: There is a wrong output of action "' +
-	        utils.getFunctionName(action) + '" ' +
-	        'in signal "' + signalName + '". Check the following prop: "' + key + '"'
-	      ].join(''))
-	    }
-	  })
-	}
-	
-	var createNextFunction = function (action, signalName, resolver) {
-	  var next = function () {
-	    if (next.hasRun) {
-	      throw new Error('Cerebral - You are running an async output on a synchronous action in ' + signalName + '. The action is ' + action.name + '. Either put it in an array or make sure the output is synchronous')
-	    }
-	
-	    var path = typeof arguments[0] === 'string' ? arguments[0] : null
-	    var arg = path ? arguments[1] : arguments[0]
-	
-	    // Test payload
-	    if (utils.isDeveloping()) {
-	      try {
-	        JSON.stringify(arg)
-	      } catch (e) {
-	        console.log('Not serializable', arg)
-	        throw new Error('Cerebral - Could not serialize output. Please check signal ' + signalName + ' and action ' + action.name)
-	      }
-	    }
-	
-	    if (!path && !action.defaultOutput && action.outputs) {
-	      throw new Error([
-	        'Cerebral: There is a wrong output of action "' +
-	        utils.getFunctionName(action) + '" ' +
-	        'in signal "' + signalName + '". Set defaultOutput or use one of outputs ' +
-	        JSON.stringify(Object.keys(action.output || action.outputs))
-	      ].join(''))
-	    }
-	
-	    if (utils.isDeveloping()) {
-	      validateOutput(action, path, arg, signalName)
-	    }
-	
-	    // This is where I verify path and types
-	    var result = {
-	      path: path || action.defaultOutput,
-	      arg: arg
-	    }
-	
-	    if (resolver) {
-	      resolver(result)
-	    } else {
-	      next._result = result
-	    }
-	  }
-	  return next
-	}
-	
-	var addOutputs = function (action, next) {
-	  if (!action.outputs) {
-	    next.success = next.bind(null, 'success')
-	    next.error = next.bind(null, 'error')
-	  } else if (Array.isArray(action.outputs)) {
-	    action.outputs.forEach(function (key) {
-	      next[key] = next.bind(null, key)
-	    })
-	  } else {
-	    Object.keys(action.outputs).forEach(function (key) {
-	      next[key] = next.bind(null, key)
-	    })
-	  }
-	}
-	
-	module.exports = {
-	  sync: function (action, signalName) {
-	    var next = createNextFunction(action, signalName)
-	    addOutputs(action, next)
-	
-	    if (utils.isDeveloping()) {
-	      setTimeout(function () {
-	        next.hasRun = true
-	      }, 0)
-	    }
-	
-	    return next
-	  },
-	  async: function (action, signalName) {
-	    var resolver = null
-	    var promise = new Promise(function (resolve) {
-	      resolver = resolve
-	    })
-	    var next = createNextFunction(action, signalName, resolver)
-	    addOutputs(action, next)
-	    return {
-	      fn: next,
-	      promise: promise
-	    }
-	  }
-	}
-
-
-/***/ },
-/* 221 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var utils = __webpack_require__(217)
@@ -22757,7 +22462,7 @@
 
 
 /***/ },
-/* 222 */
+/* 220 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var utils = __webpack_require__(217)
@@ -22790,13 +22495,15 @@
 	  } else if (typeof item === 'function') {
 	    var action = {
 	      name: item.displayName || utils.getFunctionName(item),
-	      input: {},
-	      output: null,
+	      options: {
+	        output: item.output,
+	        outputs: item.outputs,
+	        defaultOutput: item.defaultOutput,
+	        defaultInput: item.defaultInput,
+	        input: item.input
+	      },
 	      duration: 0,
-	      mutations: [],
-	      serviceCalls: [],
 	      isAsync: !isSync,
-	      outputPath: null,
 	      isExecuting: false,
 	      hasExecuted: false,
 	      path: path.slice(),
@@ -22829,52 +22536,245 @@
 
 
 /***/ },
-/* 223 */
+/* 221 */
+/***/ function(module, exports) {
+
+	module.exports = function (contextProviders, execution, controller) {
+	  contextProviders = contextProviders.reduce(function (uniqueContextProviders, contextProvider) {
+	    if (uniqueContextProviders.indexOf(contextProvider) === -1) {
+	      return uniqueContextProviders.concat(contextProvider)
+	    }
+	    return uniqueContextProviders
+	  }, [])
+	  return contextProviders.reduce(function (context, contextProvider) {
+	    if (typeof contextProvider === 'function') {
+	      return contextProvider(context, execution, controller)
+	    } else {
+	      return Object.keys(contextProvider).reduce(function (context, key) {
+	        context[key] = contextProvider[key]
+	
+	        return context
+	      }, context)
+	    }
+	  }, {})
+	}
+
+
+/***/ },
+/* 222 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var utils = __webpack_require__(217)
 	
-	module.exports = function (modules, state, services, signalName, actionName) {
-	  var modulesArg = {}
-	  Object.keys(modules).forEach(function (key) {
-	    var path = modules[key].path
-	    var module = {
-	      name: modules[key].name,
-	      path: modules[key].path,
-	      meta: modules[key].meta
+	module.exports = function (context, execution) {
+	  var action = execution.action
+	  var signal = execution.signal
+	  var inputs = [
+	    {},
+	    execution.payload,
+	    action.options.defaultInput ? action.options.defaultInput : {}
+	  ]
+	  context.input = utils.merge.apply(null, inputs)
+	
+	  if (utils.isDeveloping() && action.options.input) {
+	    utils.verifyInput(action.name, signal.name, action.options.input, context.input)
+	    try {
+	      JSON.stringify(context.input)
+	    } catch (e) {
+	      console.log('Not serializable', context.input)
+	      throw new Error('Cerebral - Could not serialize input to signal. Please check signal ' + signal.name)
+	    }
+	  }
+	
+	  return context
+	}
+
+
+/***/ },
+/* 223 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution, controller) {
+	  var action = execution.action
+	  var model = controller.getModel()
+	  var isAsync = action.isAsync
+	
+	  var createStateObject = function (parentPath) {
+	    var state = Object.keys(model.accessors || {}).reduce(function (state, accessor) {
+	      state[accessor] = function () {
+	        var args = [].slice.call(arguments)
+	        var path = []
+	        if (args[0] && Array.isArray(args[0])) {
+	          path = args.shift()
+	        } else if (args[0] && typeof args[0] === 'string') {
+	          path = args.shift().split('.')
+	        }
+	        if (accessor === 'get' && typeof arguments[0] === 'function') {
+	          return controller.get(arguments[0])
+	        }
+	        return model.accessors[accessor].apply(null, [parentPath.concat(path)].concat(args))
+	      }
+	      return state
+	    }, {})
+	    Object.keys(model.mutators || {}).reduce(function (state, mutator) {
+	      state[mutator] = function () {
+	        if (isAsync) {
+	          throw new Error('Cerebral: You can not mutate state in async actions. Output values and set them with a sync action')
+	        }
+	        var path = []
+	        var args = [].slice.call(arguments)
+	        if (Array.isArray(args[0])) {
+	          path = args.shift()
+	        } else if (typeof args[0] === 'string') {
+	          path = args.shift().split('.')
+	        }
+	
+	        return model.mutators[mutator].apply(null, [parentPath.concat(path)].concat(args))
+	      }
+	      return state
+	    }, state)
+	
+	    state.select = function (path) {
+	      return createStateObject(typeof path === 'string' ? path.split('.') : path)
 	    }
 	
-	    module.state = Object.keys(state).reduce(function (module, key) {
-	      module[key] = function () {
-	        console.warn('Signal "' + signalName + '" with action "' + actionName + '" calls STATE on its module/modules arg. This is DEPRECATED, the module arg will be removed and modules will expose the same data as to components. Please use normal STATE and SERVICES arg')
-	        var args = [].slice.call(arguments)
-	        var statePath = path
-	        if (args[0] && Array.isArray(args[0])) {
-	          statePath = statePath.concat(args.shift())
-	        } else if (args[0] && typeof args[0] === 'string') {
-	          statePath = statePath.concat(args.shift().split('.'))
-	        }
-	        return state[key].apply(null, [statePath].concat(args))
-	      }
-	      return module
-	    }, {})
-	    module.services = path.reduce(function (services, key) {
-	      return services ? services[key] : null
-	    }, services)
+	    return state
+	  }
 	
-	    utils.setDeep(modulesArg, key, module)
-	  })
-	  return modulesArg
+	  context.state = createStateObject([])
+	
+	  return context
 	}
 
 
 /***/ },
 /* 224 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution, controller) {
+	  context.services = controller.getServices()
+	
+	  return context
+	}
+
+
+/***/ },
+/* 225 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var utils = __webpack_require__(217)
+	var types = __webpack_require__(218)
 	
-	var Devtools = __webpack_require__(225)
+	var validateOutput = function (action, path, arg, signalName) {
+	  if ((!action.options.output && !action.options.outputs) || Array.isArray(action.options.outputs)) {
+	    return
+	  }
+	
+	  var checkers = action.options.output || action.options.outputs[path || action.options.defaultOutput]
+	
+	  if (checkers === undefined) {
+	    return
+	  }
+	
+	  if (!arg) {
+	    throw new Error([
+	      'Cerebral: There is a wrong output of action "' +
+	      utils.getFunctionName(action) + '" ' +
+	      'in signal "' + signalName + '". You did not pass any values to the output'
+	    ].join(''))
+	  }
+	
+	  Object.keys(checkers).forEach(function (key) {
+	    if (!types(checkers[key], arg[key])) {
+	      throw new Error([
+	        'Cerebral: There is a wrong output of action "' +
+	        utils.getFunctionName(action) + '" ' +
+	        'in signal "' + signalName + '". Check the following prop: "' + key + '"'
+	      ].join(''))
+	    }
+	  })
+	}
+	
+	var createNextFunction = function (action, signalName, resolver) {
+	  var next = function () {
+	    if (next.hasRun) {
+	      throw new Error('Cerebral - You are running an async output on a synchronous action in ' + signalName + '. The action is ' + action.name + '. Either put it in an array or make sure the output is synchronous')
+	    }
+	
+	    var path = typeof arguments[0] === 'string' ? arguments[0] : null
+	    var payload = path ? arguments[1] : arguments[0]
+	
+	    // Test payload
+	    if (utils.isDeveloping()) {
+	      try {
+	        JSON.stringify(payload)
+	      } catch (e) {
+	        console.log('Not serializable', payload)
+	        throw new Error('Cerebral - Could not serialize output. Please check signal ' + signalName + ' and action ' + action.name)
+	      }
+	    }
+	
+	    if (!path && !action.options.defaultOutput && action.options.outputs) {
+	      throw new Error([
+	        'Cerebral: There is a wrong output of action "' +
+	        utils.getFunctionName(action) + '" ' +
+	        'in signal "' + signalName + '". Set defaultOutput or use one of outputs ' +
+	        JSON.stringify(Object.keys(action.output || action.outputs))
+	      ].join(''))
+	    }
+	
+	    if (utils.isDeveloping()) {
+	      validateOutput(action, path, payload, signalName)
+	    }
+	
+	    // This is where I verify path and types
+	    var result = {
+	      path: path || action.options.defaultOutput,
+	      payload: payload || {}
+	    }
+	    resolver(result)
+	  }
+	  return next
+	}
+	
+	var addOutputs = function (action, next) {
+	  if (!action.outputs) {
+	    next.success = next.bind(null, 'success')
+	    next.error = next.bind(null, 'error')
+	  } else if (Array.isArray(action.outputs)) {
+	    action.outputs.forEach(function (key) {
+	      next[key] = next.bind(null, key)
+	    })
+	  } else {
+	    Object.keys(action.outputs).forEach(function (key) {
+	      next[key] = next.bind(null, key)
+	    })
+	  }
+	}
+	
+	module.exports = function (context, execution) {
+	  var action = execution.action
+	  var signalName = execution.signal.name
+	  var resolve = execution.resolve
+	  var next = createNextFunction(action, signalName, resolve)
+	  addOutputs(action, next)
+	
+	  if (!Boolean(resolve) && utils.isDeveloping()) {
+	    setTimeout(function () {
+	      next.hasRun = true
+	    }, 0)
+	  }
+	  context.output = next
+	
+	  return context
+	}
+
+
+/***/ },
+/* 226 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var utils = __webpack_require__(217)
 	
 	module.exports = function (controller, model, allModules) {
 	  var initialState = {}
@@ -22886,16 +22786,6 @@
 	    }, {})
 	
 	    return controller.addSignals(scopedSignals, {
-	      modulePath: moduleName.split('.')
-	    })
-	  }
-	
-	  var registerSignalsSync = function (moduleName, signals) {
-	    var scopedSignals = Object.keys(signals).reduce(function (scopedSignals, key) {
-	      scopedSignals[moduleName + '.' + key] = signals[key]
-	      return scopedSignals
-	    }, {})
-	    return controller.signalsSync(scopedSignals, {
 	      modulePath: moduleName.split('.')
 	    })
 	  }
@@ -22914,14 +22804,14 @@
 	  }
 	
 	  var registerModules = function (parentModuleName, modules) {
+	    var warnSignalTrigger = null
 	    if (arguments.length === 1) {
 	      modules = parentModuleName
 	      parentModuleName = null
-	
-	      // TODO: remove after devtools extracted to external module
-	      if (utils.isDeveloping() && !modules.devtools && !controller.getModules().devtools) {
-	        modules.devtools = Devtools()
+	      warnSignalTrigger = function (event) {
+	        throw new Error('Cerebral - You triggered a signal ' + event.signal.name + ' while modules are being registered. Do not trigger signals until Cerebral has initialized your application.')
 	      }
+	      controller.on('signalTrigger', warnSignalTrigger)
 	    }
 	
 	    Object.keys(modules).forEach(function (moduleName) {
@@ -22929,6 +22819,7 @@
 	    })
 	
 	    if (arguments.length === 1) {
+	      controller.removeListener('signalTrigger', warnSignalTrigger)
 	      controller.emit('modulesLoaded', { modules: allModules })
 	    }
 	
@@ -22952,24 +22843,8 @@
 	        allModules[alias] = moduleExport
 	      },
 	      addSignals: registerSignals.bind(null, moduleName),
-	      signals: function () {
-	        console.warn('Cerebral: module.signals() is DEPRECATED. Please use module.addSignals() instead')
-	        module.addSignals.apply(module, arguments)
-	      },
-	      signalsSync: function () {
-	        console.warn('Cerebral: module.signalsSync() is DEPRECATED. Please use module.addSignals({mySignal: {chain: [], immediate: true}}) instead')
-	        registerSignalsSync.apply(module, [moduleName].concat([].slice.call(arguments)))
-	      },
 	      addServices: registerServices.bind(null, moduleName),
-	      services: function () {
-	        console.warn('Cerebral: module.services() is DEPRECATED. Please use module.addServices() instead')
-	        return module.addServices.apply(module, arguments)
-	      },
 	      addState: registerInitialState.bind(null, moduleName),
-	      state: function () {
-	        console.warn('Cerebral: module.state() is DEPRECATED. Please use module.addState() instead')
-	        module.addState.apply(module, arguments)
-	      },
 	      getSignals: function () {
 	        var signals = controller.getSignals()
 	        var path = moduleName.split('.')
@@ -22978,9 +22853,8 @@
 	        }, signals)
 	      },
 	      addModules: registerModules.bind(null, moduleName),
-	      modules: function () {
-	        console.warn('Cerebral: module.modules() is DEPRECATED. Please use module.addModules() instead')
-	        module.addModules.apply(module, arguments)
+	      addContextProvider: function (provider) {
+	        controller.addContextProvider(provider, moduleName)
 	      }
 	    }
 	    var constructedModule = moduleConstructor(module, controller)
@@ -22997,362 +22871,6 @@
 	  })
 	
 	  return registerModules
-	}
-
-
-/***/ },
-/* 225 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/* eslint-env browser*/
-	var MODULE = 'cerebral-module-devtools'
-	var SignalStore = __webpack_require__(226)
-	var utils = __webpack_require__(217)
-	
-	module.exports = function Devtools () {
-	  if (typeof window === 'undefined') {
-	    return function () {}
-	  }
-	
-	  return function init (module, controller) {
-	    module.alias(MODULE)
-	
-	    module.modules({
-	      store: SignalStore()
-	    })
-	
-	    var signalStore = controller.getServices()[module.name].store
-	
-	    var isInitialized = false
-	    var disableDebugger = false
-	    var willKeepState = false
-	
-	    var getDetail = function () {
-	      return JSON.stringify({
-	        signals: signalStore.getSignals(),
-	        willKeepState: willKeepState,
-	        disableDebugger: disableDebugger,
-	        currentSignalIndex: signalStore.getCurrentIndex(),
-	        isExecutingAsync: signalStore.isExecutingAsync(),
-	        isRemembering: signalStore.isRemembering(),
-	        computedPaths: []
-	      })
-	    }
-	
-	    var update = utils.debounce(function () {
-	      if (disableDebugger) {
-	        return
-	      }
-	
-	      var event = new CustomEvent('cerebral.dev.update', {
-	        detail: getDetail()
-	      })
-	      window.dispatchEvent(event)
-	    }, 100)
-	
-	    var initialize = function () {
-	      if (isInitialized) return
-	      var signals = []
-	
-	      if (utils.hasLocalStorage()) {
-	        disableDebugger = JSON.parse(localStorage.getItem('cerebral_disable_debugger'))
-	        signals = JSON.parse(localStorage.getItem('cerebral_signals')) || []
-	        willKeepState = JSON.parse(localStorage.getItem('cerebral_willKeepState'))
-	      }
-	
-	      isInitialized = true
-	
-	      // Might be an async signal running here
-	      if (willKeepState && signalStore.isExecutingAsync()) {
-	        controller.once('signalEnd', function () {
-	          var event = new CustomEvent('cerebral.dev.cerebralPong', {
-	            detail: getDetail()
-	          })
-	          signalStore.setSignals(signals)
-	          signalStore.remember(signalStore.getSignals().length - 1)
-	          window.dispatchEvent(event)
-	        })
-	      } else {
-	        signalStore.setSignals(signals)
-	        signalStore.rememberInitial(signalStore.getSignals().length - 1)
-	        var event = new CustomEvent('cerebral.dev.cerebralPong', {
-	          detail: getDetail()
-	        })
-	        window.dispatchEvent(event)
-	      }
-	    }
-	
-	    window.addEventListener('cerebral.dev.debuggerPing', function () {
-	      if (utils.isDeveloping()) {
-	        initialize()
-	      }
-	    })
-	
-	    window.addEventListener('cerebral.dev.requestUpdate', function () {
-	      update()
-	    })
-	
-	    window.addEventListener('cerebral.dev.toggleKeepState', function () {
-	      willKeepState = !willKeepState
-	      update()
-	    })
-	
-	    window.addEventListener('cerebral.dev.toggleDisableDebugger', function () {
-	      disableDebugger = !disableDebugger
-	      if (disableDebugger && willKeepState) {
-	        willKeepState = !willKeepState
-	      }
-	      var event = new CustomEvent('cerebral.dev.update', {
-	        detail: getDetail()
-	      })
-	      window.dispatchEvent(event)
-	    })
-	
-	    window.addEventListener('cerebral.dev.resetStore', function () {
-	      signalStore.reset()
-	      controller.emit('change')
-	      update()
-	    })
-	
-	    window.addEventListener('cerebral.dev.remember', function (event) {
-	      signalStore.remember(event.detail)
-	      update()
-	    })
-	
-	    window.addEventListener('cerebral.dev.rememberNow', function (event) {
-	      signalStore.rememberNow()
-	      update()
-	    })
-	
-	    window.addEventListener('cerebral.dev.rewrite', function (event) {
-	      signalStore.remember(event.detail)
-	      var signals = signalStore.getSignals()
-	      signals.splice(event.detail + 1, signals.length - 1 - event.detail)
-	      update()
-	    })
-	
-	    window.addEventListener('cerebral.dev.logPath', function (event) {
-	      var name = event.detail.name
-	      var value = controller.get(event.detail.path)
-	      // toValue instead?
-	      console.log('CEREBRAL - ' + name + ':', value.toJS ? value.toJS() : value)
-	    })
-	
-	    window.addEventListener('cerebral.dev.logModel', function (event) {
-	      console.log('CEREBRAL - model:', controller.logModel())
-	    })
-	
-	    window.addEventListener('unload', function () {
-	      signalStore.removeRunningSignals()
-	
-	      if (utils.hasLocalStorage()) {
-	        localStorage.setItem('cerebral_signals', isInitialized && willKeepState ? JSON.stringify(signalStore.getSignals()) : JSON.stringify([]))
-	        localStorage.setItem('cerebral_willKeepState', isInitialized && JSON.stringify(!!willKeepState))
-	        localStorage.setItem('cerebral_disable_debugger', isInitialized && JSON.stringify(!!disableDebugger))
-	      }
-	    })
-	
-	    var services = {
-	      update: update,
-	      start: function () {
-	        console.warn('Cerebral: devtools.start() method is deprecated. Devtools has started automatically.')
-	      }
-	    }
-	
-	    module.services(services)
-	
-	    controller.getDevtools = function () {
-	      console.warn('Cerebral: controller.getDevtools() method is deprecated. Please upgrade your view package to latest version.')
-	      return services
-	    }
-	
-	    if (window.__CEREBRAL_DEVTOOLS_GLOBAL_HOOK__) {
-	      window.__CEREBRAL_DEVTOOLS_GLOBAL_HOOK__.signals = controller.getSignals()
-	    }
-	    var event = new CustomEvent('cerebral.dev.cerebralPing')
-	    window.dispatchEvent(event)
-	
-	    controller.on('signalStart', update)
-	    controller.on('actionStart', update)
-	    controller.on('actionEnd', update)
-	    controller.on('signalEnd', update)
-	  }
-	}
-
-
-/***/ },
-/* 226 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	  SignalStore will keep track of all signals triggered. It keeps an array of signals with
-	  actions and mutations related to that signal. It will also track any async signals processing. The SignalStore
-	  is able to reset state and travel to a "specific point in time" by playing back the signals up to a certain
-	  signal.
-	*/
-	var utils = __webpack_require__(217)
-	
-	module.exports = function SignalStore () {
-	  return function (module, controller) {
-	    var signals = []
-	    var isRemembering = false
-	    var currentIndex = signals.length - 1
-	    var hasRememberedInitial = false
-	
-	    var asyncActionsRunning = []
-	
-	    var addAsyncAction = function (action) {
-	      asyncActionsRunning.push(action)
-	    }
-	
-	    var removeAsyncAction = function (action) {
-	      asyncActionsRunning.splice(asyncActionsRunning.indexOf(action), 1)
-	    }
-	
-	    var addSignal = function (signal) {
-	      if (utils.isDeveloping() && !isRemembering) {
-	        if (asyncActionsRunning.length) {
-	          var currentAction = asyncActionsRunning[asyncActionsRunning.length - 1]
-	          currentAction.signals = currentAction.signals || []
-	          currentAction.signals.push(signal)
-	        } else {
-	          currentIndex++
-	          signals.push(signal)
-	        }
-	      }
-	    }
-	
-	    var services = {
-	      // This is used when loading up the app and producing the last known state
-	      rememberNow: function () {
-	        if (!signals.length) {
-	          return
-	        }
-	
-	        currentIndex = signals.length - 1
-	        this.remember(currentIndex)
-	      },
-	
-	      // Will reset the SignalStore
-	      reset: function () {
-	        if (!isRemembering) {
-	          signals = []
-	
-	          currentIndex = -1
-	
-	          controller.emit('reset')
-	        }
-	      },
-	
-	      rememberInitial: function (index) {
-	        // Both router and debugger might try to do initial remembering
-	        if (hasRememberedInitial) {
-	          return
-	        }
-	
-	        hasRememberedInitial = true
-	        this.remember(index)
-	      },
-	
-	      remember: function (index) {
-	        // Flag that we are remembering
-	        isRemembering = true
-	        controller.emit('reset')
-	
-	        // If going back to initial state, just return and update
-	        if (index === -1) {
-	          currentIndex = index
-	          isRemembering = false
-	        } else {
-	          // Start from beginning
-	          currentIndex = -1
-	
-	          // Go through signals
-	          try {
-	            for (var x = 0; x <= index; x++) {
-	              var signal = signals[x]
-	              if (!signal) {
-	                break
-	              }
-	
-	              // Trigger signal and then set what has become the current signal
-	              var signalMethodPath = signal.name.split('.').reduce(function (signals, key) {
-	                return signals[key]
-	              }, controller.getSignals())
-	              signalMethodPath(signal.input, {
-	                branches: signal.branches
-	              })
-	              currentIndex = x
-	            }
-	          } catch (e) {
-	            console.log(e)
-	            console.warn('CEREBRAL - There was an error remembering state, it has been reset')
-	            this.reset()
-	          }
-	        }
-	
-	        controller.emit('change')
-	        isRemembering = false
-	      },
-	
-	      removeRunningSignals: function () {
-	        for (var x = 0; x < signals.length; x++) {
-	          if (signals[x].isExecuting) {
-	            signals.splice(x, 1)
-	            x--
-	          }
-	        }
-	      },
-	
-	      getSignals: function () {
-	        return signals
-	      },
-	
-	      setSignals: function (newSignals) {
-	        signals = signals.concat(newSignals)
-	      },
-	
-	      isExecutingAsync: function () {
-	        return !!asyncActionsRunning.length
-	      },
-	
-	      isRemembering: function () {
-	        return isRemembering
-	      },
-	
-	      getCurrentIndex: function () {
-	        return currentIndex
-	      }
-	    }
-	
-	    module.services(services)
-	    controller.getStore = function getStore () {
-	      console.warn('Cerebral: controller.getStore() method is deprecated.')
-	      return services
-	    }
-	
-	    controller.on('signalTrigger', function (args) {
-	      var signal = args.signal
-	
-	      if (!isRemembering && currentIndex !== -1 && currentIndex < signals.length - 1) {
-	        signal.preventSignalRun()
-	        console.warn('Cerebral - Looking in the past, ignored signal ' + signal.name)
-	      }
-	    })
-	    controller.on('signalStart', function (args) {
-	      var signal = args.signal
-	
-	      if (!signal.isPrevented) addSignal(signal)
-	    })
-	    controller.on('actionStart', function (args) {
-	      var action = args.action
-	      if (action.isAsync) addAsyncAction(args.action)
-	    })
-	    controller.on('actionEnd', function (args) {
-	      var action = args.action
-	      if (action.isAsync) removeAsyncAction(args.action)
-	    })
-	  }
 	}
 
 
@@ -23759,199 +23277,7 @@
 /* 229 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var utils = __webpack_require__(217)
-	
-	module.exports = function Recorder () {
-	  return function (module, controller) {
-	    var signalMethods = controller.getSignals()
-	
-	    var currentSignal = null
-	    var currentSeek = 0
-	    var currentRecording = null
-	    var durationTimer = null
-	    var playbackTimers = []
-	    var duration = 0
-	    var started = null
-	    var ended = null
-	    var isPlaying = false
-	    var isRecording = false
-	    var isCatchingUp = false
-	    var startSeek = 0
-	    var catchup = null
-	
-	    // Runs the signal synchronously
-	    var triggerSignal = function (signal) {
-	      var signalName = signal.name.split('.')
-	      var signalMethodPath = signalMethods
-	      while (signalName.length) {
-	        signalMethodPath = signalMethodPath[signalName.shift()]
-	      }
-	      currentSignal = signal
-	      signalMethodPath(signal.input, {
-	        isRecorded: !isCatchingUp,
-	        branches: isCatchingUp && signal.branches
-	      })
-	    }
-	
-	    var services = {
-	      seek: function (seek) {
-	        startSeek = seek
-	        clearTimeout(durationTimer)
-	        playbackTimers.forEach(clearTimeout)
-	
-	        controller.emit('seek', startSeek, currentRecording)
-	
-	        // Optimize with FOR loop
-	        catchup = currentRecording.signals.filter(function (signal) {
-	          return signal.start - currentRecording.start < startSeek
-	        })
-	        isCatchingUp = true
-	        catchup.forEach(triggerSignal)
-	        isCatchingUp = false
-	      },
-	
-	      getCurrentSignal: function () {
-	        return currentSignal
-	      },
-	
-	      createTimer: function () {
-	        var update = function () {
-	          duration += 500
-	          controller.emit('duration', duration)
-	          if (duration < currentRecording.duration) {
-	            durationTimer = setTimeout(update, 500)
-	            controller.emit('change')
-	          }
-	        }
-	        durationTimer = setTimeout(update, 500)
-	      },
-	
-	      // TODO: Do I need this? Not in use?
-	      resetState: function () {
-	        controller.emit('recorderReset', currentRecording)
-	      },
-	
-	      play: function () {
-	        if (isPlaying || isRecording) {
-	          throw new Error('CEREBRAL Recorder - You can not play while already playing or recording')
-	        }
-	
-	        this.createTimer()
-	        var signalsCount = currentRecording.signals.length
-	        var startIndex = catchup.length
-	        for (var x = startIndex; x < signalsCount; x++) {
-	          var signal = currentRecording.signals[x]
-	          var durationTarget = signal.start - currentRecording.start - startSeek
-	          playbackTimers.push(setTimeout(triggerSignal.bind(null, signal), durationTarget))
-	        }
-	        isPlaying = true
-	        started = Date.now()
-	      },
-	
-	      record: function (options) {
-	        options = options || {}
-	
-	        // If we are recording over the previous stuff, go back to start
-	        if (currentRecording) {
-	          this.resetState()
-	        }
-	
-	        var paths = options.paths || [[]]
-	        var state = paths.map(function (path) {
-	          return {
-	            path: path,
-	            value: controller.get(path)
-	          }
-	        })
-	
-	        currentRecording = {
-	          initialState: state,
-	          start: Date.now(),
-	          signals: []
-	        }
-	
-	        isRecording = true
-	      },
-	
-	      stop: function () {
-	        var wasPlaying = isPlaying
-	        clearTimeout(durationTimer)
-	        isPlaying = false
-	        isRecording = false
-	
-	        if (wasPlaying) {
-	          return
-	        }
-	
-	        currentRecording.end = Date.now()
-	        currentRecording.duration = currentRecording.end - currentRecording.start
-	      },
-	
-	      pause: function pause () {
-	        ended = Date.now()
-	        currentSeek = ended - started
-	        clearTimeout(durationTimer)
-	        playbackTimers.forEach(clearTimeout)
-	        isPlaying = false
-	      },
-	
-	      addSignal: function (signal) {
-	        currentRecording.signals.push(signal)
-	      },
-	
-	      isRecording: function () {
-	        return isRecording
-	      },
-	
-	      isPlaying: function () {
-	        return isPlaying
-	      },
-	
-	      isCatchingUp: function () {
-	        return isCatchingUp
-	      },
-	
-	      getRecording: function () {
-	        return currentRecording
-	      },
-	
-	      getCurrentSeek: function () {
-	        return currentSeek
-	      },
-	
-	      loadRecording: function (recording) {
-	        currentRecording = recording
-	      }
-	    }
-	
-	    // uncomment after merge with cerebral-module-recorder
-	    // module.services(services)
-	    controller.getRecorder = function getRecorder () {
-	      console.warn('Cerebral: controller.getRecorder() is deprecated. Please upgrade recorder module.')
-	      return services
-	    }
-	
-	    controller.on('signalTrigger', function (args) {
-	      var signal = args.signal
-	
-	      if (isPlaying && !signal.options.isRecorded) {
-	        signal.preventSignalRun()
-	        if (utils.isDeveloping()) console.warn('Cerebral - Recording is replaying, ignored signal ' + signal.name)
-	      }
-	    })
-	
-	    controller.on('signalStart', function (args) {
-	      if (isRecording) services.addSignal(args.signal)
-	    })
-	  }
-	}
-
-
-/***/ },
-/* 230 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Baobab = __webpack_require__(231);
+	var Baobab = __webpack_require__(230);
 	function deepmerge(target, src) {
 	   var array = Array.isArray(src);
 	   var dst = array && [] || {};
@@ -24111,7 +23437,7 @@
 
 
 /***/ },
-/* 231 */
+/* 230 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -24138,29 +23464,29 @@
 	
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 	
-	var _emmett = __webpack_require__(232);
+	var _emmett = __webpack_require__(231);
 	
 	var _emmett2 = _interopRequireDefault(_emmett);
 	
-	var _cursor = __webpack_require__(233);
+	var _cursor = __webpack_require__(232);
 	
 	var _cursor2 = _interopRequireDefault(_cursor);
 	
-	var _monkey = __webpack_require__(234);
+	var _monkey = __webpack_require__(233);
 	
-	var _watcher = __webpack_require__(238);
+	var _watcher = __webpack_require__(237);
 	
 	var _watcher2 = _interopRequireDefault(_watcher);
 	
-	var _type = __webpack_require__(235);
+	var _type = __webpack_require__(234);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _update2 = __webpack_require__(236);
+	var _update2 = __webpack_require__(235);
 	
 	var _update3 = _interopRequireDefault(_update2);
 	
-	var _helpers = __webpack_require__(237);
+	var _helpers = __webpack_require__(236);
 	
 	var helpers = _interopRequireWildcard(_helpers);
 	
@@ -24720,7 +24046,7 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 232 */
+/* 231 */
 /***/ function(module, exports, __webpack_require__) {
 
 	(function() {
@@ -25279,7 +24605,7 @@
 
 
 /***/ },
-/* 233 */
+/* 232 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -25304,17 +24630,17 @@
 	
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 	
-	var _emmett = __webpack_require__(232);
+	var _emmett = __webpack_require__(231);
 	
 	var _emmett2 = _interopRequireDefault(_emmett);
 	
-	var _monkey = __webpack_require__(234);
+	var _monkey = __webpack_require__(233);
 	
-	var _type = __webpack_require__(235);
+	var _type = __webpack_require__(234);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _helpers = __webpack_require__(237);
+	var _helpers = __webpack_require__(236);
 	
 	/**
 	 * Traversal helper function for dynamic cursors. Will throw a legible error
@@ -26169,7 +25495,7 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 234 */
+/* 233 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -26190,15 +25516,15 @@
 	
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 	
-	var _type = __webpack_require__(235);
+	var _type = __webpack_require__(234);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _update2 = __webpack_require__(236);
+	var _update2 = __webpack_require__(235);
 	
 	var _update3 = _interopRequireDefault(_update2);
 	
-	var _helpers = __webpack_require__(237);
+	var _helpers = __webpack_require__(236);
 	
 	/**
 	 * Monkey Definition class
@@ -26464,7 +25790,7 @@
 	exports.Monkey = Monkey;
 
 /***/ },
-/* 235 */
+/* 234 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -26481,7 +25807,7 @@
 	  value: true
 	});
 	
-	var _monkey = __webpack_require__(234);
+	var _monkey = __webpack_require__(233);
 	
 	var type = {};
 	
@@ -26719,7 +26045,7 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 236 */
+/* 235 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -26739,11 +26065,11 @@
 	
 	function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i]; return arr2; } else { return Array.from(arr); } }
 	
-	var _type = __webpack_require__(235);
+	var _type = __webpack_require__(234);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _helpers = __webpack_require__(237);
+	var _helpers = __webpack_require__(236);
 	
 	function err(operation, expectedTarget, path) {
 	  return (0, _helpers.makeError)('Baobab.update: cannot apply the "' + operation + '" on ' + ('a non ' + expectedTarget + ' (path: /' + path.join('/') + ').'), { path: path });
@@ -26956,7 +26282,7 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 237 */
+/* 236 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/* eslint eqeqeq: 0 */
@@ -26988,9 +26314,9 @@
 	
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 	
-	var _monkey = __webpack_require__(234);
+	var _monkey = __webpack_require__(233);
 	
-	var _type = __webpack_require__(235);
+	var _type = __webpack_require__(234);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
@@ -27576,7 +26902,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 238 */
+/* 237 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -27602,19 +26928,19 @@
 	
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 	
-	var _emmett = __webpack_require__(232);
+	var _emmett = __webpack_require__(231);
 	
 	var _emmett2 = _interopRequireDefault(_emmett);
 	
-	var _cursor = __webpack_require__(233);
+	var _cursor = __webpack_require__(232);
 	
 	var _cursor2 = _interopRequireDefault(_cursor);
 	
-	var _type = __webpack_require__(235);
+	var _type = __webpack_require__(234);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _helpers = __webpack_require__(237);
+	var _helpers = __webpack_require__(236);
 	
 	/**
 	 * Watcher class.
@@ -27759,10 +27085,10 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 239 */
+/* 238 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var axios = __webpack_require__(240);
+	var axios = __webpack_require__(239);
 	
 	var configIndex = {
 	  get: 1,
@@ -27831,25 +27157,25 @@
 
 
 /***/ },
-/* 240 */
+/* 239 */
 /***/ function(module, exports, __webpack_require__) {
 
-	module.exports = __webpack_require__(241);
+	module.exports = __webpack_require__(240);
 
 /***/ },
-/* 241 */
+/* 240 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var defaults = __webpack_require__(242);
-	var utils = __webpack_require__(243);
-	var dispatchRequest = __webpack_require__(244);
-	var InterceptorManager = __webpack_require__(252);
-	var isAbsoluteURL = __webpack_require__(253);
-	var combineURLs = __webpack_require__(254);
-	var bind = __webpack_require__(255);
-	var transformData = __webpack_require__(248);
+	var defaults = __webpack_require__(241);
+	var utils = __webpack_require__(242);
+	var dispatchRequest = __webpack_require__(243);
+	var InterceptorManager = __webpack_require__(251);
+	var isAbsoluteURL = __webpack_require__(252);
+	var combineURLs = __webpack_require__(253);
+	var bind = __webpack_require__(254);
+	var transformData = __webpack_require__(247);
 	
 	function Axios(defaultConfig) {
 	  this.defaults = utils.merge({}, defaultConfig);
@@ -27932,7 +27258,7 @@
 	axios.all = function all(promises) {
 	  return Promise.all(promises);
 	};
-	axios.spread = __webpack_require__(256);
+	axios.spread = __webpack_require__(255);
 	
 	// Expose interceptors
 	axios.interceptors = defaultInstance.interceptors;
@@ -27963,12 +27289,12 @@
 
 
 /***/ },
-/* 242 */
+/* 241 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(243);
+	var utils = __webpack_require__(242);
 	
 	var PROTECTION_PREFIX = /^\)\]\}',?\n/;
 	var DEFAULT_CONTENT_TYPE = {
@@ -28032,7 +27358,7 @@
 
 
 /***/ },
-/* 243 */
+/* 242 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28282,7 +27608,7 @@
 
 
 /***/ },
-/* 244 */
+/* 243 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(process) {'use strict';
@@ -28304,10 +27630,10 @@
 	        adapter = config.adapter;
 	      } else if (typeof XMLHttpRequest !== 'undefined') {
 	        // For browsers use XHR adapter
-	        adapter = __webpack_require__(245);
+	        adapter = __webpack_require__(244);
 	      } else if (typeof process !== 'undefined') {
 	        // For node use HTTP adapter
-	        adapter = __webpack_require__(245);
+	        adapter = __webpack_require__(244);
 	      }
 	
 	      if (typeof adapter === 'function') {
@@ -28323,17 +27649,17 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(12)))
 
 /***/ },
-/* 245 */
+/* 244 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(243);
-	var buildURL = __webpack_require__(246);
-	var parseHeaders = __webpack_require__(247);
-	var transformData = __webpack_require__(248);
-	var isURLSameOrigin = __webpack_require__(249);
-	var btoa = window.btoa || __webpack_require__(250);
+	var utils = __webpack_require__(242);
+	var buildURL = __webpack_require__(245);
+	var parseHeaders = __webpack_require__(246);
+	var transformData = __webpack_require__(247);
+	var isURLSameOrigin = __webpack_require__(248);
+	var btoa = window.btoa || __webpack_require__(249);
 	
 	module.exports = function xhrAdapter(resolve, reject, config) {
 	  var requestData = config.data;
@@ -28408,7 +27734,7 @@
 	  // This is only done if running in a standard browser environment.
 	  // Specifically not if we're in a web worker, or react-native.
 	  if (utils.isStandardBrowserEnv()) {
-	    var cookies = __webpack_require__(251);
+	    var cookies = __webpack_require__(250);
 	
 	    // Add xsrf header
 	    var xsrfValue = config.withCredentials || isURLSameOrigin(config.url) ?
@@ -28459,12 +27785,12 @@
 
 
 /***/ },
-/* 246 */
+/* 245 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(243);
+	var utils = __webpack_require__(242);
 	
 	function encode(val) {
 	  return encodeURIComponent(val).
@@ -28532,12 +27858,12 @@
 
 
 /***/ },
-/* 247 */
+/* 246 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(243);
+	var utils = __webpack_require__(242);
 	
 	/**
 	 * Parse headers into an object
@@ -28575,12 +27901,12 @@
 
 
 /***/ },
-/* 248 */
+/* 247 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(243);
+	var utils = __webpack_require__(242);
 	
 	/**
 	 * Transform the data for a request or a response
@@ -28601,12 +27927,12 @@
 
 
 /***/ },
-/* 249 */
+/* 248 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(243);
+	var utils = __webpack_require__(242);
 	
 	module.exports = (
 	  utils.isStandardBrowserEnv() ?
@@ -28675,7 +28001,7 @@
 
 
 /***/ },
-/* 250 */
+/* 249 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28717,12 +28043,12 @@
 
 
 /***/ },
-/* 251 */
+/* 250 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(243);
+	var utils = __webpack_require__(242);
 	
 	module.exports = (
 	  utils.isStandardBrowserEnv() ?
@@ -28776,12 +28102,12 @@
 
 
 /***/ },
-/* 252 */
+/* 251 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(243);
+	var utils = __webpack_require__(242);
 	
 	function InterceptorManager() {
 	  this.handlers = [];
@@ -28834,7 +28160,7 @@
 
 
 /***/ },
-/* 253 */
+/* 252 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28854,7 +28180,7 @@
 
 
 /***/ },
-/* 254 */
+/* 253 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28872,7 +28198,7 @@
 
 
 /***/ },
-/* 255 */
+/* 254 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28889,7 +28215,7 @@
 
 
 /***/ },
-/* 256 */
+/* 255 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28922,15 +28248,15 @@
 
 
 /***/ },
-/* 257 */
+/* 256 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var mixin = __webpack_require__(258)
-	var decorator = __webpack_require__(259)
-	var hoc = __webpack_require__(260)
-	var container = __webpack_require__(261)
-	var component = __webpack_require__(262)
-	var link = __webpack_require__(263)
+	var mixin = __webpack_require__(257)
+	var decorator = __webpack_require__(258)
+	var hoc = __webpack_require__(259)
+	var container = __webpack_require__(260)
+	var component = __webpack_require__(261)
+	var link = __webpack_require__(262)
 	
 	module.exports = {
 	  Mixin: mixin,
@@ -28943,7 +28269,7 @@
 
 
 /***/ },
-/* 258 */
+/* 257 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var React = __webpack_require__(10)
@@ -29069,10 +28395,10 @@
 
 
 /***/ },
-/* 259 */
+/* 258 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Hoc = __webpack_require__(260)
+	var Hoc = __webpack_require__(259)
 	
 	module.exports = function (paths) {
 	  return function (Component) {
@@ -29082,11 +28408,11 @@
 
 
 /***/ },
-/* 260 */
+/* 259 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var React = __webpack_require__(10)
-	var mixin = __webpack_require__(258)
+	var mixin = __webpack_require__(257)
 	
 	module.exports = function (Component, paths) {
 	  return React.createClass({
@@ -29113,7 +28439,7 @@
 
 
 /***/ },
-/* 261 */
+/* 260 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var React = __webpack_require__(10)
@@ -29139,11 +28465,11 @@
 
 
 /***/ },
-/* 262 */
+/* 261 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var React = __webpack_require__(10)
-	var Hoc = __webpack_require__(260)
+	var Hoc = __webpack_require__(259)
 	
 	module.exports = function () {
 	  var paths
@@ -29169,11 +28495,11 @@
 
 
 /***/ },
-/* 263 */
+/* 262 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var React = __webpack_require__(10)
-	var get = __webpack_require__(264)
+	var get = __webpack_require__(263)
 	
 	module.exports = React.createClass({
 	  contextTypes: {
@@ -29241,7 +28567,7 @@
 
 
 /***/ },
-/* 264 */
+/* 263 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -29252,7 +28578,7 @@
 	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
 	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
 	 */
-	var stringToPath = __webpack_require__(265);
+	var stringToPath = __webpack_require__(264);
 	
 	/** `Object#toString` result references. */
 	var symbolTag = '[object Symbol]';
@@ -29432,7 +28758,7 @@
 
 
 /***/ },
-/* 265 */
+/* 264 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(module, global) {/**
@@ -30172,7 +29498,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(194)(module), (function() { return this; }())))
 
 /***/ },
-/* 266 */
+/* 265 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30185,21 +29511,21 @@
 	
 	var _react2 = _interopRequireDefault(_react);
 	
-	var _cerebralViewReact = __webpack_require__(257);
+	var _cerebralViewReact = __webpack_require__(256);
 	
-	var _NewTodo = __webpack_require__(267);
+	var _NewTodo = __webpack_require__(266);
 	
 	var _NewTodo2 = _interopRequireDefault(_NewTodo);
 	
-	var _List = __webpack_require__(268);
+	var _List = __webpack_require__(267);
 	
 	var _List2 = _interopRequireDefault(_List);
 	
-	var _Footer = __webpack_require__(273);
+	var _Footer = __webpack_require__(272);
 	
 	var _Footer2 = _interopRequireDefault(_Footer);
 	
-	var _visibleTodos = __webpack_require__(272);
+	var _visibleTodos = __webpack_require__(271);
 	
 	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
 	
@@ -30267,7 +29593,7 @@
 	module.exports = App;
 
 /***/ },
-/* 267 */
+/* 266 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30284,7 +29610,7 @@
 	
 	var _react2 = _interopRequireDefault(_react);
 	
-	var _cerebralViewReact = __webpack_require__(257);
+	var _cerebralViewReact = __webpack_require__(256);
 	
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 	
@@ -30347,7 +29673,7 @@
 	exports.default = NewTodo;
 
 /***/ },
-/* 268 */
+/* 267 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30364,17 +29690,17 @@
 	
 	var _react2 = _interopRequireDefault(_react);
 	
-	var _Todo = __webpack_require__(269);
+	var _Todo = __webpack_require__(268);
 	
 	var _Todo2 = _interopRequireDefault(_Todo);
 	
-	var _cerebralViewReact = __webpack_require__(257);
+	var _cerebralViewReact = __webpack_require__(256);
 	
-	var _isAllChecked = __webpack_require__(271);
+	var _isAllChecked = __webpack_require__(270);
 	
 	var _isAllChecked2 = _interopRequireDefault(_isAllChecked);
 	
-	var _visibleTodos = __webpack_require__(272);
+	var _visibleTodos = __webpack_require__(271);
 	
 	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
 	
@@ -30438,7 +29764,7 @@
 	exports.default = List;
 
 /***/ },
-/* 269 */
+/* 268 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30455,11 +29781,11 @@
 	
 	var _react2 = _interopRequireDefault(_react);
 	
-	var _classnames = __webpack_require__(270);
+	var _classnames = __webpack_require__(269);
 	
 	var _classnames2 = _interopRequireDefault(_classnames);
 	
-	var _cerebralViewReact = __webpack_require__(257);
+	var _cerebralViewReact = __webpack_require__(256);
 	
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 	
@@ -30634,7 +29960,7 @@
 	exports.default = Todo;
 
 /***/ },
-/* 270 */
+/* 269 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
@@ -30688,7 +30014,7 @@
 
 
 /***/ },
-/* 271 */
+/* 270 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30705,14 +30031,14 @@
 	  }).length === 0 && todos.length !== 0;
 	};
 	
-	var _visibleTodos = __webpack_require__(272);
+	var _visibleTodos = __webpack_require__(271);
 	
 	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 /***/ },
-/* 272 */
+/* 271 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -30734,7 +30060,7 @@
 	};
 
 /***/ },
-/* 273 */
+/* 272 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30751,9 +30077,9 @@
 	
 	var _react2 = _interopRequireDefault(_react);
 	
-	var _cerebralViewReact = __webpack_require__(257);
+	var _cerebralViewReact = __webpack_require__(256);
 	
-	var _counts = __webpack_require__(274);
+	var _counts = __webpack_require__(273);
 	
 	var _counts2 = _interopRequireDefault(_counts);
 	
@@ -30862,7 +30188,7 @@
 	exports.default = TodosFooter;
 
 /***/ },
-/* 274 */
+/* 273 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -30895,7 +30221,7 @@
 	};
 
 /***/ },
-/* 275 */
+/* 274 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30904,19 +30230,19 @@
 	  value: true
 	});
 	
-	var _NewTodo = __webpack_require__(276);
+	var _NewTodo = __webpack_require__(275);
 	
 	var _NewTodo2 = _interopRequireDefault(_NewTodo);
 	
-	var _List = __webpack_require__(286);
+	var _List = __webpack_require__(285);
 	
 	var _List2 = _interopRequireDefault(_List);
 	
-	var _Footer = __webpack_require__(306);
+	var _Footer = __webpack_require__(305);
 	
 	var _Footer2 = _interopRequireDefault(_Footer);
 	
-	var _appMounted = __webpack_require__(313);
+	var _appMounted = __webpack_require__(312);
 	
 	var _appMounted2 = _interopRequireDefault(_appMounted);
 	
@@ -30941,7 +30267,7 @@
 	};
 
 /***/ },
-/* 276 */
+/* 275 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30950,11 +30276,11 @@
 	  value: true
 	});
 	
-	var _submitted = __webpack_require__(277);
+	var _submitted = __webpack_require__(276);
 	
 	var _submitted2 = _interopRequireDefault(_submitted);
 	
-	var _titleChanged = __webpack_require__(284);
+	var _titleChanged = __webpack_require__(283);
 	
 	var _titleChanged2 = _interopRequireDefault(_titleChanged);
 	
@@ -30975,7 +30301,7 @@
 	};
 
 /***/ },
-/* 277 */
+/* 276 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -30984,27 +30310,27 @@
 	  value: true
 	});
 	
-	var _add = __webpack_require__(278);
+	var _add = __webpack_require__(277);
 	
 	var _add2 = _interopRequireDefault(_add);
 	
-	var _save = __webpack_require__(279);
+	var _save = __webpack_require__(278);
 	
 	var _save2 = _interopRequireDefault(_save);
 	
-	var _setSaving = __webpack_require__(280);
+	var _setSaving = __webpack_require__(279);
 	
 	var _setSaving2 = _interopRequireDefault(_setSaving);
 	
-	var _unsetSaving = __webpack_require__(281);
+	var _unsetSaving = __webpack_require__(280);
 	
 	var _unsetSaving2 = _interopRequireDefault(_unsetSaving);
 	
-	var _updateTodo = __webpack_require__(282);
+	var _updateTodo = __webpack_require__(281);
 	
 	var _updateTodo2 = _interopRequireDefault(_updateTodo);
 	
-	var _setError = __webpack_require__(283);
+	var _setError = __webpack_require__(282);
 	
 	var _setError2 = _interopRequireDefault(_setError);
 	
@@ -31016,7 +30342,7 @@
 	}, _unsetSaving2.default];
 
 /***/ },
-/* 278 */
+/* 277 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31048,7 +30374,7 @@
 	exports.default = addTodo;
 
 /***/ },
-/* 279 */
+/* 278 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31072,7 +30398,7 @@
 	exports.default = saveTodo;
 
 /***/ },
-/* 280 */
+/* 279 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31089,7 +30415,7 @@
 	exports.default = setSaving;
 
 /***/ },
-/* 281 */
+/* 280 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31106,7 +30432,7 @@
 	exports.default = unsetSaving;
 
 /***/ },
-/* 282 */
+/* 281 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31127,7 +30453,7 @@
 	exports.default = updateTodo;
 
 /***/ },
-/* 283 */
+/* 282 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -31149,7 +30475,7 @@
 	exports.default = setError;
 
 /***/ },
-/* 284 */
+/* 283 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31158,7 +30484,7 @@
 	  value: true
 	});
 	
-	var _setTitle = __webpack_require__(285);
+	var _setTitle = __webpack_require__(284);
 	
 	var _setTitle2 = _interopRequireDefault(_setTitle);
 	
@@ -31170,7 +30496,7 @@
 	};
 
 /***/ },
-/* 285 */
+/* 284 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31188,7 +30514,7 @@
 	exports.default = setTitle;
 
 /***/ },
-/* 286 */
+/* 285 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31197,31 +30523,31 @@
 	  value: true
 	});
 	
-	var _newTitleChanged = __webpack_require__(287);
+	var _newTitleChanged = __webpack_require__(286);
 	
 	var _newTitleChanged2 = _interopRequireDefault(_newTitleChanged);
 	
-	var _newTitleSubmitted = __webpack_require__(289);
+	var _newTitleSubmitted = __webpack_require__(288);
 	
 	var _newTitleSubmitted2 = _interopRequireDefault(_newTitleSubmitted);
 	
-	var _removeTodoClicked = __webpack_require__(294);
+	var _removeTodoClicked = __webpack_require__(293);
 	
 	var _removeTodoClicked2 = _interopRequireDefault(_removeTodoClicked);
 	
-	var _todoDoubleClicked = __webpack_require__(298);
+	var _todoDoubleClicked = __webpack_require__(297);
 	
 	var _todoDoubleClicked2 = _interopRequireDefault(_todoDoubleClicked);
 	
-	var _toggleAllChanged = __webpack_require__(300);
+	var _toggleAllChanged = __webpack_require__(299);
 	
 	var _toggleAllChanged2 = _interopRequireDefault(_toggleAllChanged);
 	
-	var _toggleCompletedChanged = __webpack_require__(303);
+	var _toggleCompletedChanged = __webpack_require__(302);
 	
 	var _toggleCompletedChanged2 = _interopRequireDefault(_toggleCompletedChanged);
 	
-	var _newTitleAborted = __webpack_require__(305);
+	var _newTitleAborted = __webpack_require__(304);
 	
 	var _newTitleAborted2 = _interopRequireDefault(_newTitleAborted);
 	
@@ -31250,7 +30576,7 @@
 	};
 
 /***/ },
-/* 287 */
+/* 286 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31259,7 +30585,7 @@
 	  value: true
 	});
 	
-	var _setTodoNewTitle = __webpack_require__(288);
+	var _setTodoNewTitle = __webpack_require__(287);
 	
 	var _setTodoNewTitle2 = _interopRequireDefault(_setTodoNewTitle);
 	
@@ -31271,7 +30597,7 @@
 	};
 
 /***/ },
-/* 288 */
+/* 287 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -31291,7 +30617,7 @@
 	exports.default = setTodoNewTitle;
 
 /***/ },
-/* 289 */
+/* 288 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31300,19 +30626,19 @@
 	  value: true
 	});
 	
-	var _putTodo = __webpack_require__(290);
+	var _putTodo = __webpack_require__(289);
 	
 	var _putTodo2 = _interopRequireDefault(_putTodo);
 	
-	var _overwriteTodoTitle = __webpack_require__(291);
+	var _overwriteTodoTitle = __webpack_require__(290);
 	
 	var _overwriteTodoTitle2 = _interopRequireDefault(_overwriteTodoTitle);
 	
-	var _setPutError = __webpack_require__(292);
+	var _setPutError = __webpack_require__(291);
 	
 	var _setPutError2 = _interopRequireDefault(_setPutError);
 	
-	var _stopEditingTodo = __webpack_require__(293);
+	var _stopEditingTodo = __webpack_require__(292);
 	
 	var _stopEditingTodo2 = _interopRequireDefault(_stopEditingTodo);
 	
@@ -31324,7 +30650,7 @@
 	}, _stopEditingTodo2.default];
 
 /***/ },
-/* 290 */
+/* 289 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31354,7 +30680,7 @@
 	exports.default = putTodo;
 
 /***/ },
-/* 291 */
+/* 290 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31373,7 +30699,7 @@
 	exports.default = overwriteTodoTitle;
 
 /***/ },
-/* 292 */
+/* 291 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31390,7 +30716,7 @@
 	exports.default = setPutError;
 
 /***/ },
-/* 293 */
+/* 292 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31413,7 +30739,7 @@
 	exports.default = stopEditingTodo;
 
 /***/ },
-/* 294 */
+/* 293 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31422,15 +30748,15 @@
 	  value: true
 	});
 	
-	var _deleteTodo = __webpack_require__(295);
+	var _deleteTodo = __webpack_require__(294);
 	
 	var _deleteTodo2 = _interopRequireDefault(_deleteTodo);
 	
-	var _removeTodo = __webpack_require__(296);
+	var _removeTodo = __webpack_require__(295);
 	
 	var _removeTodo2 = _interopRequireDefault(_removeTodo);
 	
-	var _setDeleteError = __webpack_require__(297);
+	var _setDeleteError = __webpack_require__(296);
 	
 	var _setDeleteError2 = _interopRequireDefault(_setDeleteError);
 	
@@ -31442,7 +30768,7 @@
 	}];
 
 /***/ },
-/* 295 */
+/* 294 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31466,7 +30792,7 @@
 	exports.default = deleteTodo;
 
 /***/ },
-/* 296 */
+/* 295 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -31484,7 +30810,7 @@
 	exports.default = removeTodo;
 
 /***/ },
-/* 297 */
+/* 296 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31501,7 +30827,7 @@
 	exports.default = setDeleteError;
 
 /***/ },
-/* 298 */
+/* 297 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31510,7 +30836,7 @@
 	  value: true
 	});
 	
-	var _editTodo = __webpack_require__(299);
+	var _editTodo = __webpack_require__(298);
 	
 	var _editTodo2 = _interopRequireDefault(_editTodo);
 	
@@ -31519,7 +30845,7 @@
 	exports.default = [_editTodo2.default];
 
 /***/ },
-/* 299 */
+/* 298 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -31541,7 +30867,7 @@
 	exports.default = editTodo;
 
 /***/ },
-/* 300 */
+/* 299 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31550,15 +30876,15 @@
 	  value: true
 	});
 	
-	var _putToggleAll = __webpack_require__(301);
+	var _putToggleAll = __webpack_require__(300);
 	
 	var _putToggleAll2 = _interopRequireDefault(_putToggleAll);
 	
-	var _toggleAllChecked = __webpack_require__(302);
+	var _toggleAllChecked = __webpack_require__(301);
 	
 	var _toggleAllChecked2 = _interopRequireDefault(_toggleAllChecked);
 	
-	var _setPutError = __webpack_require__(292);
+	var _setPutError = __webpack_require__(291);
 	
 	var _setPutError2 = _interopRequireDefault(_setPutError);
 	
@@ -31570,7 +30896,7 @@
 	}];
 
 /***/ },
-/* 301 */
+/* 300 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31602,7 +30928,7 @@
 	exports.default = putToggleAll;
 
 /***/ },
-/* 302 */
+/* 301 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31627,7 +30953,7 @@
 	exports.default = toggleAllChecked;
 
 /***/ },
-/* 303 */
+/* 302 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31636,15 +30962,15 @@
 	  value: true
 	});
 	
-	var _putTodo = __webpack_require__(290);
+	var _putTodo = __webpack_require__(289);
 	
 	var _putTodo2 = _interopRequireDefault(_putTodo);
 	
-	var _toggleTodoCompleted = __webpack_require__(304);
+	var _toggleTodoCompleted = __webpack_require__(303);
 	
 	var _toggleTodoCompleted2 = _interopRequireDefault(_toggleTodoCompleted);
 	
-	var _setPutError = __webpack_require__(292);
+	var _setPutError = __webpack_require__(291);
 	
 	var _setPutError2 = _interopRequireDefault(_setPutError);
 	
@@ -31656,7 +30982,7 @@
 	}];
 
 /***/ },
-/* 304 */
+/* 303 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31675,6 +31001,24 @@
 	exports.default = toggleTodoCompleted;
 
 /***/ },
+/* 304 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _stopEditingTodo = __webpack_require__(292);
+	
+	var _stopEditingTodo2 = _interopRequireDefault(_stopEditingTodo);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_stopEditingTodo2.default];
+
+/***/ },
 /* 305 */
 /***/ function(module, exports, __webpack_require__) {
 
@@ -31684,29 +31028,11 @@
 	  value: true
 	});
 	
-	var _stopEditingTodo = __webpack_require__(293);
-	
-	var _stopEditingTodo2 = _interopRequireDefault(_stopEditingTodo);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_stopEditingTodo2.default];
-
-/***/ },
-/* 306 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _clearCompletedClicked = __webpack_require__(307);
+	var _clearCompletedClicked = __webpack_require__(306);
 	
 	var _clearCompletedClicked2 = _interopRequireDefault(_clearCompletedClicked);
 	
-	var _filterClicked = __webpack_require__(311);
+	var _filterClicked = __webpack_require__(310);
 	
 	var _filterClicked2 = _interopRequireDefault(_filterClicked);
 	
@@ -31726,7 +31052,7 @@
 	};
 
 /***/ },
-/* 307 */
+/* 306 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31735,19 +31061,19 @@
 	  value: true
 	});
 	
-	var _getCompleted = __webpack_require__(308);
+	var _getCompleted = __webpack_require__(307);
 	
 	var _getCompleted2 = _interopRequireDefault(_getCompleted);
 	
-	var _deleteCompleted = __webpack_require__(309);
+	var _deleteCompleted = __webpack_require__(308);
 	
 	var _deleteCompleted2 = _interopRequireDefault(_deleteCompleted);
 	
-	var _clearCompleted = __webpack_require__(310);
+	var _clearCompleted = __webpack_require__(309);
 	
 	var _clearCompleted2 = _interopRequireDefault(_clearCompleted);
 	
-	var _setDeleteError = __webpack_require__(297);
+	var _setDeleteError = __webpack_require__(296);
 	
 	var _setDeleteError2 = _interopRequireDefault(_setDeleteError);
 	
@@ -31759,7 +31085,7 @@
 	}];
 
 /***/ },
-/* 308 */
+/* 307 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31789,7 +31115,7 @@
 	exports.default = getCompleted;
 
 /***/ },
-/* 309 */
+/* 308 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31813,7 +31139,7 @@
 	exports.default = deleteCompleted;
 
 /***/ },
-/* 310 */
+/* 309 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -31832,7 +31158,7 @@
 	exports.default = clearCompleted;
 
 /***/ },
-/* 311 */
+/* 310 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31841,7 +31167,7 @@
 	  value: true
 	});
 	
-	var _setFilter = __webpack_require__(312);
+	var _setFilter = __webpack_require__(311);
 	
 	var _setFilter2 = _interopRequireDefault(_setFilter);
 	
@@ -31850,7 +31176,7 @@
 	exports.default = [_setFilter2.default];
 
 /***/ },
-/* 312 */
+/* 311 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31868,7 +31194,7 @@
 	exports.default = setFilter;
 
 /***/ },
-/* 313 */
+/* 312 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -31877,23 +31203,23 @@
 	  value: true
 	});
 	
-	var _setLoadingTodos = __webpack_require__(314);
+	var _setLoadingTodos = __webpack_require__(313);
 	
 	var _setLoadingTodos2 = _interopRequireDefault(_setLoadingTodos);
 	
-	var _getTodos = __webpack_require__(315);
+	var _getTodos = __webpack_require__(314);
 	
 	var _getTodos2 = _interopRequireDefault(_getTodos);
 	
-	var _setTodos = __webpack_require__(316);
+	var _setTodos = __webpack_require__(315);
 	
 	var _setTodos2 = _interopRequireDefault(_setTodos);
 	
-	var _setTodosError = __webpack_require__(317);
+	var _setTodosError = __webpack_require__(316);
 	
 	var _setTodosError2 = _interopRequireDefault(_setTodosError);
 	
-	var _unsetLoadingTodos = __webpack_require__(318);
+	var _unsetLoadingTodos = __webpack_require__(317);
 	
 	var _unsetLoadingTodos2 = _interopRequireDefault(_unsetLoadingTodos);
 	
@@ -31905,7 +31231,7 @@
 	}, _unsetLoadingTodos2.default];
 
 /***/ },
-/* 314 */
+/* 313 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31922,7 +31248,7 @@
 	exports.default = setLoadingTodos;
 
 /***/ },
-/* 315 */
+/* 314 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31942,7 +31268,7 @@
 	exports.default = getTodos;
 
 /***/ },
-/* 316 */
+/* 315 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -31967,7 +31293,7 @@
 	exports.default = setTodos;
 
 /***/ },
-/* 317 */
+/* 316 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -31984,7 +31310,7 @@
 	exports.default = setTodosError;
 
 /***/ },
-/* 318 */
+/* 317 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -32001,7 +31327,7 @@
 	exports.default = unsetLoadingTodos;
 
 /***/ },
-/* 319 */
+/* 318 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -32029,13 +31355,12 @@
 	};
 
 /***/ },
-/* 320 */
+/* 319 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* eslint-env browser*/
-	var MODULE = 'cerebral-module-devtools'
-	var SignalStore = __webpack_require__(321)
-	var utils = __webpack_require__(324)
+	var SignalStore = __webpack_require__(320)
+	var utils = __webpack_require__(325)
 	var requestAnimationFrame = requestAnimationFrame || function (cb) { setTimeout(cb) }
 	
 	module.exports = function Devtools () {
@@ -32043,7 +31368,12 @@
 	  if (typeof window.chrome === 'undefined') { return function () {} }
 	
 	  return function init (module, controller) {
-	    module.alias(MODULE)
+	    if (controller.addContextProvider) {
+	      controller.addContextProvider(__webpack_require__(326))
+	      controller.addContextProvider(__webpack_require__(327))
+	      controller.addContextProvider(__webpack_require__(328))
+	      controller.addContextProvider(__webpack_require__(329))
+	    }
 	
 	    module.addModules({
 	      store: SignalStore()
@@ -32319,7 +31649,7 @@
 
 
 /***/ },
-/* 321 */
+/* 320 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -32328,7 +31658,7 @@
 	  is able to reset state and travel to a "specific point in time" by playing back the signals up to a certain
 	  signal.
 	*/
-	var uuid = __webpack_require__(322)
+	var uuid = __webpack_require__(321)
 	
 	module.exports = function SignalStore () {
 	  return function (module, controller) {
@@ -32336,10 +31666,12 @@
 	    var isRemembering = false
 	    var currentIndex = signals.length - 1
 	    var hasRememberedInitial = false
-	    var originalSignalReferences = []
-	    var storeSignalReferences = []
-	
 	    var asyncActionsRunning = []
+	
+	    if (controller.addContextProvider) {
+	      controller.addContextProvider(__webpack_require__(323))
+	      controller.addContextProvider(__webpack_require__(324))
+	    }
 	
 	    var addAsyncAction = function (action) {
 	      asyncActionsRunning.push(action)
@@ -32353,26 +31685,16 @@
 	      options = options || {}
 	
 	      if (!isRemembering) {
-	        var signalCopy = Object.keys(signal).reduce(function (signalCopy, key) {
-	          signalCopy[key] = signal[key]
-	          return signalCopy
-	        }, {})
-	        signalCopy.signalStoreRef = uuid.v4()
-	        signalCopy.isRouted = signalCopy.isRouted || options.isRouted
-	        signalCopy.isRecorded = signalCopy.isRecorded || options.isRecorded
+	        signal.signalStoreRef = uuid.v4()
 	
 	        if (asyncActionsRunning.length) {
 	          var currentAction = asyncActionsRunning[asyncActionsRunning.length - 1]
 	          currentAction.signals = currentAction.signals || []
-	          currentAction.signals.push(signalCopy)
+	          currentAction.signals.push(signal)
 	        } else {
 	          currentIndex++
-	          // We still check if signal already has the property (older version)
-	          // should be removed later
-	          signals.push(signalCopy)
+	          signals.push(signal)
 	        }
-	        originalSignalReferences.push(signal)
-	        storeSignalReferences.push(signalCopy)
 	      }
 	    }
 	
@@ -32433,13 +31755,13 @@
 	              var signalMethodPath = signal.name.split('.').reduce(function (signals, key) {
 	                return signals[key]
 	              }, controller.getSignals())
-	              signalMethodPath(signal.input, {
+	              signalMethodPath(signal.payload || signal.input, {
 	                branches: signal.branches
 	              })
 	              currentIndex = x
 	            }
 	          } catch (e) {
-	            console.log(e)
+	            console.log(e.stack)
 	            console.warn('CEREBRAL - There was an error remembering state, it has been reset')
 	            this.reset()
 	          }
@@ -32485,42 +31807,31 @@
 	      return services
 	    }
 	
-	    controller.on('signalTrigger', function (args) {
-	      var signal = args.signal
+	    controller.on('signalTrigger', function (event) {
+	      var signal = event.signal
 	
 	      if (!isRemembering && currentIndex !== -1 && currentIndex < signals.length - 1) {
 	        signal.preventSignalRun()
 	        console.warn('Cerebral - Looking in the past, ignored signal ' + signal.name)
 	      }
 	    })
-	    controller.on('signalStart', function (args) {
-	      var signal = args.signal
-	      var options = args.options
-	
-	      if (!signal.isPrevented) addSignal(signal, options)
+	    controller.on('signalStart', function (event) {
+	      if (!event.signal.isPrevented) addSignal(event.signal)
 	    })
-	    controller.on('actionStart', function (args) {
-	      var action = args.action
-	      if (action.isAsync) addAsyncAction(args.action)
+	    controller.on('actionStart', function (event) {
+	      var action = event.action
+	      if (action.isAsync) addAsyncAction(action)
 	    })
-	    controller.on('actionEnd', function (args) {
-	      var action = args.action
-	      if (action.isAsync) removeAsyncAction(args.action)
-	    })
-	    controller.on('signalEnd', function (args) {
-	      var signal = args.signal
-	      var storeSignal = storeSignalReferences[originalSignalReferences.indexOf(signal)]
-	      storeSignal.isExecuting = signal.isExecuting
-	      storeSignal.duration = signal.duration
-	      storeSignalReferences.splice(storeSignalReferences.indexOf(storeSignal), 1)
-	      originalSignalReferences.splice(originalSignalReferences.indexOf(signal), 1)
+	    controller.on('actionEnd', function (event) {
+	      var action = event.action
+	      if (action.isAsync) removeAsyncAction(action)
 	    })
 	  }
 	}
 
 
 /***/ },
-/* 322 */
+/* 321 */
 /***/ function(module, exports, __webpack_require__) {
 
 	//     uuid.js
@@ -32531,7 +31842,7 @@
 	// Unique ID creation requires a high quality random # generator.  We feature
 	// detect to determine the best RNG source, normalizing to a function that
 	// returns 128-bits of randomness, since that's what's usually required
-	var _rng = __webpack_require__(323);
+	var _rng = __webpack_require__(322);
 	
 	// Maps for number <-> hex string conversion
 	var _byteToHex = [];
@@ -32709,7 +32020,7 @@
 
 
 /***/ },
-/* 323 */
+/* 322 */
 /***/ function(module, exports) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {
@@ -32747,7 +32058,54 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
+/* 323 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution) {
+	  execution.signal.payload = execution.payload
+	  return context
+	}
+
+
+/***/ },
 /* 324 */
+/***/ function(module, exports) {
+
+	/*
+	  ## Used by Recorder and SignalStore to replay signals
+	  Should evaluate how signals are replayed. Sometimes you want
+	  to actually run the signals again (recorder)
+	*/
+	module.exports = function (context, execution, controller) {
+	  var model = controller.getModel()
+	  var action = execution.action
+	  action.mutations = action.mutations || []
+	
+	  return Object.keys(context).reduce(function (newContext, key) {
+	    newContext[key] = context[key]
+	    if (key === 'state') {
+	      Object.keys(model.mutators).forEach(function (mutatorKey) {
+	        var originalMutator = context[key][mutatorKey]
+	        newContext[key][mutatorKey] = function () {
+	          var args = [].slice.call(arguments)
+	          var path = args.shift()
+	          action.mutations.push({
+	            name: mutatorKey,
+	            path: typeof path === 'string' ? path.split('.') : path,
+	            args: args
+	          })
+	          originalMutator.apply(null, arguments)
+	        }
+	      })
+	    }
+	
+	    return newContext
+	  }, {})
+	}
+
+
+/***/ },
+/* 325 */
 /***/ function(module, exports) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {module.exports = {
@@ -32774,17 +32132,116 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 325 */
+/* 326 */
+/***/ function(module, exports) {
+
+	var convertServices = function (action, path, modulesPaths, services) {
+	  return Object.keys(services).reduce(function (newservices, key) {
+	    path.push(key)
+	    if (
+	      typeof services[key] === 'function' &&
+	      services[key].constructor.name === 'Function' &&
+	      !Object.keys(services[key]).length &&
+	      (!services[key].prototype || !Object.keys(services[key].prototype).length)
+	    ) {
+	      var servicePath = path.slice()
+	      var method = servicePath.pop()
+	      newservices[key] = function () {
+	        action.serviceCalls.push({
+	          name: servicePath.join('.'),
+	          method: method,
+	          args: [].slice.call(arguments)
+	        })
+	        return services[key].apply(this, arguments)
+	      }
+	    } else if (
+	      typeof services[key] === 'object' &&
+	      !Array.isArray(services[key]) &&
+	      services[key] !== null &&
+	      modulesPaths.indexOf(path.join('.')) >= 0
+	    ) {
+	      newservices[key] = convertServices(action, path, modulesPaths, services[key])
+	    } else {
+	      newservices[key] = services[key]
+	    }
+	    path.pop(key)
+	    return newservices
+	  }, {})
+	}
+	
+	module.exports = function (context, execution, controller) {
+	  var action = execution.action
+	  var modules = controller.getModules()
+	  var services = controller.getServices()
+	  var path = []
+	  action.serviceCalls = action.serviceCalls || []
+	  context.services = convertServices(action, path, Object.keys(modules), services)
+	
+	  return context
+	}
+
+
+/***/ },
+/* 327 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution) {
+	  var originalOutput = context.output
+	  var outputPaths = Object.keys(context.output)
+	  var output = function () {
+	    var path = typeof arguments[0] === 'string' ? arguments[0] : null
+	    var payload = path ? arguments[1] : arguments[0]
+	    execution.action.output = payload
+	    originalOutput.apply(null, arguments)
+	  }
+	
+	  outputPaths.reduce(function (output, key) {
+	    output[key] = function () {
+	      execution.action.output = arguments[0] || {}
+	      originalOutput[key].apply(null, arguments)
+	    }
+	    return output
+	  }, output)
+	
+	  context.output = output
+	
+	  return context
+	}
+
+
+/***/ },
+/* 328 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution) {
+	  execution.action.input = execution.payload
+	  return context
+	}
+
+
+/***/ },
+/* 329 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution) {
+	  execution.signal.isRecorded = execution.options.isRecorded
+	  execution.signal.isRouted = execution.options.isRouted
+	  return context
+	}
+
+
+/***/ },
+/* 330 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var MODULE = 'cerebral-module-router'
-	var isObject = __webpack_require__(326)
-	var get = __webpack_require__(327)
+	var isObject = __webpack_require__(331)
+	var get = __webpack_require__(332)
 	
-	var Mapper = __webpack_require__(329)
+	var Mapper = __webpack_require__(334)
 	var addressbar
 	try {
-	  addressbar = __webpack_require__(335)
+	  addressbar = __webpack_require__(340)
 	} catch (e) {
 	  addressbar = {
 	    pathname: '/',
@@ -32870,9 +32327,9 @@
 	      }
 	
 	      var signal = signals[event.signal.name]
-	      if (signal && !event.signal.isRouted) {
+	      if (signal && (!event.signal.isRouted && !(event.options && event.options.isRouted))) {
 	        var route = signal.route
-	        var input = event.signal.input || {}
+	        var input = event.signal.input || event.payload || {}
 	        addressbar.value = options.baseUrl + urlMapper.stringify(route, input)
 	      }
 	    }
@@ -32953,13 +32410,29 @@
 	      controller.on('signalEnd', onSignalEnd)
 	      controller.on('modulesLoaded', onModulesLoaded)
 	    }
+	
+	    if (controller.addContextProvider) {
+	      var context = {}
+	      context[MODULE] = {
+	        path: module.path
+	      }
+	      controller.addContextProvider(context)
+	    }
 	  }
 	}
 	
+	var getRouterServices = function (context) {
+	  var modulePath = context.modules ? context.modules[MODULE].path : context[MODULE].path
+	  return modulePath.reduce(function (services, key) {
+	    return services[key]
+	  }, context.services)
+	}
+	
 	Router.redirect = function (url, params) {
-	  function action (args) {
-	    var module = args.modules[MODULE]
-	    return module.services.redirect(url, params)
+	  function action (context) {
+	    var services = getRouterServices(context)
+	
+	    return services.redirect(url, params)
 	  }
 	
 	  action.displayName = 'redirect(' + url + ')'
@@ -33008,7 +32481,7 @@
 
 
 /***/ },
-/* 326 */
+/* 331 */
 /***/ function(module, exports) {
 
 	/**
@@ -33051,7 +32524,7 @@
 
 
 /***/ },
-/* 327 */
+/* 332 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -33062,7 +32535,7 @@
 	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
 	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
 	 */
-	var stringToPath = __webpack_require__(328);
+	var stringToPath = __webpack_require__(333);
 	
 	/** `Object#toString` result references. */
 	var symbolTag = '[object Symbol]';
@@ -33242,7 +32715,7 @@
 
 
 /***/ },
-/* 328 */
+/* 333 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(module, global) {/**
@@ -33982,12 +33455,12 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(194)(module), (function() { return this; }())))
 
 /***/ },
-/* 329 */
+/* 334 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict'
-	var mapper = __webpack_require__(330)
-	var compileRoute = __webpack_require__(331)
+	var mapper = __webpack_require__(335)
+	var compileRoute = __webpack_require__(336)
 	
 	module.exports = function urlMapper (options) {
 	  return mapper(compileRoute, options)
@@ -33995,7 +33468,7 @@
 
 
 /***/ },
-/* 330 */
+/* 335 */
 /***/ function(module, exports) {
 
 	module.exports = function mapper (compileFn, options) {
@@ -34048,12 +33521,12 @@
 
 
 /***/ },
-/* 331 */
+/* 336 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict'
-	var URLON = __webpack_require__(332)
-	var pathToRegexp = __webpack_require__(333)
+	var URLON = __webpack_require__(337)
+	var pathToRegexp = __webpack_require__(338)
 	
 	function compileRoute (route, options) {
 	  var re
@@ -34139,7 +33612,7 @@
 
 
 /***/ },
-/* 332 */
+/* 337 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var URLON = {
@@ -34268,10 +33741,10 @@
 
 
 /***/ },
-/* 333 */
+/* 338 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var isarray = __webpack_require__(334)
+	var isarray = __webpack_require__(339)
 	
 	/**
 	 * Expose `pathToRegexp`.
@@ -34664,7 +34137,7 @@
 
 
 /***/ },
-/* 334 */
+/* 339 */
 /***/ function(module, exports) {
 
 	module.exports = Array.isArray || function (arr) {
@@ -34673,12 +34146,12 @@
 
 
 /***/ },
-/* 335 */
+/* 340 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/* global history */
 	
-	var URL = __webpack_require__(336)
+	var URL = __webpack_require__(341)
 	var EventEmitter = __webpack_require__(228).EventEmitter
 	var instance = null
 	
@@ -34900,14 +34373,14 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 336 */
+/* 341 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var required = __webpack_require__(337)
-	  , lolcation = __webpack_require__(338)
-	  , qs = __webpack_require__(339)
+	var required = __webpack_require__(342)
+	  , lolcation = __webpack_require__(343)
+	  , qs = __webpack_require__(344)
 	  , relativere = /^\/(?!\/)/
 	  , protocolre = /^([a-z0-9.+-]+:)?(\/\/)?(.*)$/i; // actual protocol is first match
 	
@@ -35175,7 +34648,7 @@
 
 
 /***/ },
-/* 337 */
+/* 342 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -35219,7 +34692,7 @@
 
 
 /***/ },
-/* 338 */
+/* 343 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {'use strict';
@@ -35251,7 +34724,7 @@
 	 */
 	module.exports = function lolcation(loc) {
 	  loc = loc || global.location || {};
-	  URL = URL || __webpack_require__(336);
+	  URL = URL || __webpack_require__(341);
 	
 	  var finaldestination = {}
 	    , type = typeof loc
@@ -35279,7 +34752,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 339 */
+/* 344 */
 /***/ function(module, exports) {
 
 	'use strict';
