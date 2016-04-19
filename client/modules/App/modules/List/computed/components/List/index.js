@@ -16,15 +16,15 @@ class List extends React.Component {
 
   render() {
     return (
-      <section id="main">
+      <section className="main">
         <input
-          id="toggle-all"
+          className="toggle-all"
           type="checkbox"
           checked={this.props.isAllChecked}
           onChange={() => this.props.signals.app.list.toggleAllChanged()}
         />
         <label htmlFor="toggle-all">Mark all as complete</label>
-        <ul id="todo-list">
+        <ul className="todo-list">
           {this.props.todos.map(this.renderTodo.bind(this))}
         </ul>
       </section>

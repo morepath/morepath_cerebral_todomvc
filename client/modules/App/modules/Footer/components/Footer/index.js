@@ -21,7 +21,7 @@ class TodosFooter extends React.Component {
 
   renderCompletedButton() {
     return (
-      <button id="clear-completed" onClick={() => this.props.signals.app.footer.clearCompletedClicked()}>
+      <button className="clear-completed" onClick={() => this.props.signals.app.footer.clearCompletedClicked()}>
         Clear completed ({this.props.counts.completedCount})
       </button>
     );
@@ -29,9 +29,9 @@ class TodosFooter extends React.Component {
 
   render() {
     return (
-      <footer id="footer">
-        <span id="todo-count"><strong>{this.renderRemainingCount()}</strong></span>
-        <ul id="filters">
+      <footer className="footer">
+        <span className="todo-count"><strong>{this.renderRemainingCount()}</strong></span>
+        <ul className="filters">
           <li>
             <Link className={this.renderRouteClass('all')} signal="app.footer.filterClicked">All</Link>
           </li>

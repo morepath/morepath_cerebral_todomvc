@@ -21,7 +21,7 @@ class NewTodo extends React.Component {
     return (
       <form id="todo-form" onSubmit={(e) => this.onFormSubmit(e)}>
         <input
-          id="new-todo"
+          className="new-todo"
           autoComplete="off"
           placeholder="What needs to be done?"
           value={this.props.title}

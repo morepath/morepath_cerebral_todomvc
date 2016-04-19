@@ -15,8 +15,8 @@ class App extends React.Component {
   render() {
     return (
       <div id="todoapp-wrapper">
-        <section id="todoapp">
-          <header id="header">
+        <section className="todoapp">
+          <header className="header">
             <h1>todos</h1>
             <NewTodoForm />
           </header>
@@ -24,7 +24,7 @@ class App extends React.Component {
           {this.props.visibleTodos.length ? <TodosList /> : null}
           {Object.keys(this.props.todos).length ? <TodosFooter /> : null}
         </section>
-        <footer id="info">
+        <footer className="info">
           <p>Double-click to edit a todo</p>
         </footer>
       </div>
