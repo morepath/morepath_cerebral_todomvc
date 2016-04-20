@@ -10,7 +10,7 @@ The backend ist based on `morepath_reactredux <https://github.com/morepath/morep
 
 You can run the code using a clean Python environment (using virtualenv)::
 
-  $ python bootstrap-buildout.py
+  $ python bootstrap.py
 
 after this you can install dependencies using::
 
