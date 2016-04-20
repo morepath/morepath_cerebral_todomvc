@@ -8,11 +8,20 @@ Morepath backend
 
 The backend ist based on `morepath_reactredux <https://github.com/morepath/morepath_reactredux>`_.
 
-You can run the code using a clean Python environment (using virtualenv)::
+If you don't have virtualenv install it::
+
+  $ pip install virtualenv
+
+Create a clean Python environment with virtualenv and activate it::
+
+  $ virtualenv venv
+  $ source venv/bin/activate
+
+Setup buildout::
 
   $ python bootstrap.py
 
-after this you can install dependencies using::
+After this you can install dependencies using::
 
   $ bin/buildout
 
