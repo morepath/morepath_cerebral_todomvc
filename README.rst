@@ -8,28 +8,27 @@ Morepath backend
 
 The backend ist based on `morepath_reactredux <https://github.com/morepath/morepath_reactredux>`_.
 
-If you don't have virtualenv install it::
+From inside the project directory create a clean Python environment with
+`virtualenv <https://virtualenv.pypa.io/en/latest>`_ and activate it::
 
-  $ pip install virtualenv
+  $ virtualenv env
+  $ source env/bin/activate
 
-Create a clean Python environment with virtualenv and activate it::
+After this you can install the package including dependencies using::
 
-  $ virtualenv venv
-  $ source venv/bin/activate
-
-Setup buildout::
-
-  $ python bootstrap.py
-
-After this you can install dependencies using::
-
-  $ bin/buildout
+  $ env/bin/pip install -e .
 
 Once that is done you can start the server::
 
-  $ bin/start
+  $ env/bin/run-app
 
-You can go to http://localhost:5000 to see the UI
+You can go to http://localhost:5000 to see the UI.
+
+For installing the test suite and running the tests use::
+
+  $ env/bin/pip install -e '.[test]'
+  $ env/bin/py.test
+
 
 TodoMVC JS bundle
 -----------------

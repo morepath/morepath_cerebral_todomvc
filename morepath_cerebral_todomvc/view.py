@@ -4,21 +4,21 @@ from .model import Root
 
 
 @App.json(model=Root)
-def root_get(self, request):
+def view_root(self, request):
     return {
         'collection': request.link(list)
     }
 
 
 @App.json(model=List)
-def list_get(self, request):
+def view_list(self, request):
     return {
         'todos': [request.view(todo) for todo in self.get_all()]
     }
 
 
 @App.json(model=List, request_method='POST')
-def list_post(self, request):
+def add_todo(self, request):
     todo_json = request.json
     todo = Todo(todo_json['title'], todo_json['completed'])
     self.add(todo)
@@ -31,7 +31,7 @@ def list_post(self, request):
 
 
 @App.json(model=Todo)
-def todo_get(self, request):
+def view_todo(self, request):
     return {
         '@id': request.link(self),
         'title': self.title,
@@ -40,7 +40,7 @@ def todo_get(self, request):
 
 
 @App.json(model=Todo, request_method='PUT')
-def todo_put(self, request):
+def change_todo(self, request):
     todo_json = request.json
     self.title = todo_json['title']
     self.completed = todo_json['completed']
@@ -48,6 +48,6 @@ def todo_put(self, request):
 
 
 @App.json(model=Todo, request_method='DELETE')
-def todo_delete(self, request):
+def delete_todo(self, request):
     list.remove(self.id)
     return request.view(list)
