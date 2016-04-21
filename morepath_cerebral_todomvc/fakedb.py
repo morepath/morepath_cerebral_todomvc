@@ -15,20 +15,8 @@ class List(object):
         self._todos = {}
         self._id_count = 0
 
-    def total(self):
-        return len(self._todos)
-
     def get(self, id):
         return self._todos.get(id)
-
-    def get_range(self, start, amount):
-        result = []
-        for id in range(start, start + amount):
-            todo = self.get(id)
-            if todo is None:
-                break
-            result.append(todo)
-        return result
 
     def get_all(self):
         return self._todos.values()
