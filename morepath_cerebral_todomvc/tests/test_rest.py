@@ -43,10 +43,10 @@ def test_todo():
 def test_add_todo():
     c = Client(App())
 
-    new_todo = {"@id": "http://localhost/todos/4", "title": "Something else", "completed": False}
-    new_todo_json = json.dumps(new_todo)
+    new_todo_json = json.dumps({"title": "Something else", "completed": False})
     response = c.post('/todos', new_todo_json)
-    assert response.json == new_todo
+    new_todo_response = {"@id": "http://localhost/todos/4", "title": "Something else", "completed": False}
+    assert response.json == new_todo_response
 
 
 def test_delete_todo():
@@ -66,5 +66,5 @@ def test_change_todo():
 
     changed_todo_json = json.dumps({"title": "Changed Test", "completed": True})
     response = c.put('/todos/1', changed_todo_json)
-    changed_todo = {"@id": "http://localhost/todos/1", "title": "Changed Test", "completed": True}
-    assert response.json == changed_todo
+    changed_todo_response = {"@id": "http://localhost/todos/1", "title": "Changed Test", "completed": True}
+    assert response.json == changed_todo_response
