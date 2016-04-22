@@ -10,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/henri-hulski/morepath_cerebral_todomvc.git"
+    "url": "git+https://github.com/morepath/morepath_cerebral_todomvc.git"
   },
   "author": "Henri Hulski <henri.hulski@gazeta.pl>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/henri-hulski/morepath_cerebral_todomvc/issues"
+    "url": "https://github.com/morepath/morepath_cerebral_todomvc/issues"
   },
-  "homepage": "https://github.com/henri-hulski/morepath_cerebral_todomvc#readme",
+  "homepage": "https://github.com/morepath/morepath_cerebral_todomvc#readme",
   "dependencies": {
     "babel-core": "^6.7.7",
     "babel-loader": "^6.2.4",

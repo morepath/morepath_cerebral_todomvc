@@ -5,7 +5,7 @@ from webob.static import DirectoryApp, FileApp
 from .app import App
 
 
-def run():
+def run():   # pragma: no cover
     morepath.autosetup()
 
     index = FileApp('static/index.html')
