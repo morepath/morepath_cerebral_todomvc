@@ -22,7 +22,7 @@ setup(
     zip_safe=False,
     platforms='any',
     install_requires=[
-        'morepath',
+        'morepath>=0.14',
     ],
     extras_require=dict(
         test=[

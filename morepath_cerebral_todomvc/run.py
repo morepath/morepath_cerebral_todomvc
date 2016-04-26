@@ -6,7 +6,7 @@ from .app import App
 
 
 def run():   # pragma: no cover
-    morepath.autosetup()
+    morepath.autoscan()
 
     index = FileApp('static/index.html')
     static = DirectoryApp('static')
