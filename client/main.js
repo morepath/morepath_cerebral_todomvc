@@ -10,7 +10,7 @@ import Model from 'cerebral-model-baobab';
 import Http from 'cerebral-module-http';
 import {Container} from 'cerebral-view-react';
 
-import App from './modules/App/components/App';
+import App from './components/App';
 import AppModule from './modules/App';
 
 import Refs from './modules/Refs';

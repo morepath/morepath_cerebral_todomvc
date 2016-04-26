@@ -1,6 +1,6 @@
-import NewTodo from './modules/NewTodo';
-import List from './modules/List';
-import Footer from './modules/Footer';
+import NewTodo from '../NewTodo';
+import List from '../List';
+import Footer from '../Footer';
 
 import appMounted from './signals/appMounted';
 
