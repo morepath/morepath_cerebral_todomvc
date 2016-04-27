@@ -8,7 +8,6 @@ description = (
 )
 version = '0.1.0'
 
-
 setup(
     name=name,
     version=version,
@@ -31,9 +30,12 @@ setup(
         ],
     ),
     entry_points=dict(
+        morepath=[
+            'scan = server',
+        ],
         console_scripts=[
-            'run-app = morepath_cerebral_todomvc.run:run',
-        ]
+            'run-app = server.run:run',
+        ],
     ),
     classifiers=[
         'Intended Audience :: Developers',
