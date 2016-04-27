@@ -7,6 +7,7 @@ Morepath backend
 ----------------
 
 The backend ist based on `morepath_reactredux <https://github.com/morepath/morepath_reactredux>`_.
+You find the code of the backend in the server directory.
 
 From inside the project directory create a clean Python environment with
 `virtualenv <https://virtualenv.pypa.io/en/latest>`_ and activate it::

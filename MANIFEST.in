@@ -1,4 +1,4 @@
-recursive-include morepath_cerebral_todomvc *
+recursive-include server *
 recursive-include docs *
 include *.txt
 include *.rst

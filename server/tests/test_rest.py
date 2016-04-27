@@ -1,13 +1,13 @@
 import morepath
-import morepath_cerebral_todomvc
-from morepath_cerebral_todomvc import App, fakedb
+import server
+from server import App, fakedb
 
 import json
 from webtest import TestApp as Client
 
 
 def setup_module(module):
-    morepath.scan(morepath_cerebral_todomvc)
+    morepath.scan(server)
     morepath.commit(App)
 
 
