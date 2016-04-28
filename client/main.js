@@ -4,36 +4,14 @@ import './styles.css';
 import 'file?name=[name].[ext]!./index.html';
 
 import React from 'react';
-import ReactDOM from 'react-dom';
-import Controller from 'cerebral';
-import Model from 'cerebral-model-baobab';
-import Http from 'cerebral-module-http';
+import {render} from 'react-dom';
 import {Container} from 'cerebral-view-react';
+import controller from './controller';
 
 import App from './components/App';
-import AppModule from './modules/App';
 
-import Refs from './modules/Refs';
-import Devtools from 'cerebral-module-devtools';
-import Router from 'cerebral-module-router';
-
-const controller = Controller(Model({}));
-
-controller.addModules({
-  app: AppModule(),
-
-  refs: Refs(),
-  http: Http(),
-  devtools: Devtools(),
-  router: Router({
-    '/': 'app.footer.filterClicked',
-  }, {
-    mapper: {query: true},
-  }),
-});
-
-// RENDER
-ReactDOM.render(
+render(
   <Container controller={controller}>
     <App />
-  </Container>, document.querySelector('#app'));
+  </Container>
+, document.querySelector('#app'));

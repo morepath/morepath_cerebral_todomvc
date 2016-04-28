@@ -60,63 +60,21 @@
 	
 	var _reactDom = __webpack_require__(41);
 	
-	var _reactDom2 = _interopRequireDefault(_reactDom);
+	var _cerebralViewReact = __webpack_require__(175);
 	
-	var _cerebral = __webpack_require__(175);
+	var _controller = __webpack_require__(185);
 	
-	var _cerebral2 = _interopRequireDefault(_cerebral);
+	var _controller2 = _interopRequireDefault(_controller);
 	
-	var _cerebralModelBaobab = __webpack_require__(229);
-	
-	var _cerebralModelBaobab2 = _interopRequireDefault(_cerebralModelBaobab);
-	
-	var _cerebralModuleHttp = __webpack_require__(238);
-	
-	var _cerebralModuleHttp2 = _interopRequireDefault(_cerebralModuleHttp);
-	
-	var _cerebralViewReact = __webpack_require__(256);
-	
-	var _App = __webpack_require__(265);
+	var _App = __webpack_require__(335);
 	
 	var _App2 = _interopRequireDefault(_App);
 	
-	var _App3 = __webpack_require__(274);
-	
-	var _App4 = _interopRequireDefault(_App3);
-	
-	var _Refs = __webpack_require__(318);
-	
-	var _Refs2 = _interopRequireDefault(_Refs);
-	
-	var _cerebralModuleDevtools = __webpack_require__(319);
-	
-	var _cerebralModuleDevtools2 = _interopRequireDefault(_cerebralModuleDevtools);
-	
-	var _cerebralModuleRouter = __webpack_require__(330);
-	
-	var _cerebralModuleRouter2 = _interopRequireDefault(_cerebralModuleRouter);
-	
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 	
-	var controller = (0, _cerebral2.default)((0, _cerebralModelBaobab2.default)({}));
-	
-	controller.addModules({
-	  app: (0, _App4.default)(),
-	
-	  refs: (0, _Refs2.default)(),
-	  http: (0, _cerebralModuleHttp2.default)(),
-	  devtools: (0, _cerebralModuleDevtools2.default)(),
-	  router: (0, _cerebralModuleRouter2.default)({
-	    '/': 'app.footer.filterClicked'
-	  }, {
-	    mapper: { query: true }
-	  })
-	});
-	
-	// RENDER
-	_reactDom2.default.render(_react2.default.createElement(
+	(0, _reactDom.render)(_react2.default.createElement(
 	  _cerebralViewReact.Container,
-	  { controller: controller },
+	  { controller: _controller2.default },
 	  _react2.default.createElement(_App2.default, null)
 	), document.querySelector('#app'));
 
@@ -20513,11 +20471,1334 @@
 /* 175 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var get = __webpack_require__(176)
-	var CreateSignalFactory = __webpack_require__(216)
-	var CreateRegisterModules = __webpack_require__(226)
-	var Compute = __webpack_require__(227)
-	var EventEmitter = __webpack_require__(228).EventEmitter
+	var mixin = __webpack_require__(176)
+	var decorator = __webpack_require__(177)
+	var hoc = __webpack_require__(178)
+	var container = __webpack_require__(179)
+	var component = __webpack_require__(180)
+	var link = __webpack_require__(181)
+	
+	module.exports = {
+	  Mixin: mixin,
+	  Decorator: decorator,
+	  HOC: hoc,
+	  Container: container,
+	  Component: component,
+	  Link: link
+	}
+
+
+/***/ },
+/* 176 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var React = __webpack_require__(10)
+	var callbacks = []
+	var currentController = null
+	
+	var currentUpdateLoopId = 0
+	
+	module.exports = {
+	  contextTypes: {
+	    controller: React.PropTypes.object
+	  },
+	  componentWillMount: function () {
+	    this.signals = this.context.controller.isServer ? {} : this.context.controller.getSignals()
+	    this.modules = this.context.controller.isServer ? {} : this.context.controller.getModules()
+	
+	    var statePaths = this.getStatePaths ? this.getStatePaths(this.props) : {}
+	    if (!Object.keys(statePaths).length) {
+	      return
+	    }
+	
+	    if (this.context.controller.isServer) {
+	      return this._update()
+	    }
+	
+	    if (currentController !== this.context.controller) {
+	      if (currentController) {
+	        currentController.removeListener('change', this.listener)
+	      }
+	      currentController = this.context.controller
+	      this.context.controller.on('change', this.listener)
+	    }
+	    callbacks.push(this._update)
+	    this._update()
+	  },
+	  listener: function () {
+	    var runningLoopId = ++currentUpdateLoopId
+	    var scopedRun = function (runningLoopId) {
+	      var nextCallbackIndex = -1
+	      var runNextCallback = function () {
+	        if (currentUpdateLoopId !== runningLoopId) {
+	          return
+	        }
+	        nextCallbackIndex++
+	        if (!callbacks[nextCallbackIndex]) {
+	          return
+	        }
+	        callbacks[nextCallbackIndex](runNextCallback)
+	      }
+	      runNextCallback()
+	    }
+	    scopedRun(runningLoopId)
+	  },
+	  componentWillUnmount: function () {
+	    this._isUmounting = true
+	
+	    var statePaths = this.getStatePaths ? this.getStatePaths(this.props) : {}
+	    if (Object.keys(statePaths).length) {
+	      callbacks.splice(callbacks.indexOf(this._update), 1)
+	    }
+	  },
+	  shouldComponentUpdate: function (nextProps, nextState) {
+	    var propKeys = Object.keys(nextProps || {})
+	    var stateKeys = Object.keys(nextState || {})
+	
+	    // props
+	    for (var i = 0; i < propKeys.length; i++) {
+	      if (this.props[propKeys[i]] !== nextProps[propKeys[i]]) {
+	        return true
+	      }
+	    }
+	
+	    // State
+	    for (var j = 0; j < stateKeys.length; j++) {
+	      if (this.state[stateKeys[j]] !== nextState[stateKeys[j]]) {
+	        return true
+	      }
+	    }
+	    return false
+	  },
+	  getProps: function () {
+	    var state = this.state || {}
+	    var props = this.props || {}
+	
+	    var propsToPass = Object.keys(state).reduce(function (props, key) {
+	      props[key] = state[key]
+	      return props
+	    }, {})
+	
+	    propsToPass = Object.keys(props).reduce(function (propsToPass, key) {
+	      propsToPass[key] = props[key]
+	      return propsToPass
+	    }, propsToPass)
+	
+	    propsToPass.signals = this.signals
+	    propsToPass.modules = this.modules
+	
+	    return propsToPass
+	  },
+	  _update: function (nextUpdate, props) {
+	    if (this._isUmounting || this._lastUpdateLoopId === currentUpdateLoopId) {
+	      return
+	    }
+	
+	    var statePaths = this.getStatePaths ? this.getStatePaths(props || this.props) : {}
+	    var controller = this.context.controller
+	    var newState = {}
+	
+	    newState = Object.keys(statePaths).reduce(function (newState, key) {
+	      var value = controller.get(typeof statePaths[key] === 'string' ? statePaths[key].split('.') : statePaths[key])
+	      newState[key] = value
+	      return newState
+	    }, newState)
+	
+	    if (nextUpdate) {
+	      this._lastUpdateLoopId = currentUpdateLoopId
+	      this.setState(newState)
+	      nextUpdate()
+	    } else {
+	      this.setState(newState)
+	    }
+	  }
+	}
+
+
+/***/ },
+/* 177 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Hoc = __webpack_require__(178)
+	
+	module.exports = function (paths) {
+	  return function (Component) {
+	    return Hoc(Component, paths)
+	  }
+	}
+
+
+/***/ },
+/* 178 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var React = __webpack_require__(10)
+	var mixin = __webpack_require__(176)
+	
+	module.exports = function (Component, paths) {
+	  return React.createClass({
+	    displayName: Component.name + 'Container',
+	    mixins: [mixin],
+	    componentWillReceiveProps: function (nextProps) {
+	      this._update(null, nextProps)
+	    },
+	    getStatePaths: function (props) {
+	      if (!paths) {
+	        return {}
+	      }
+	      var propsWithModules = Object.keys(props).reduce(function (propsWithModules, key) {
+	        propsWithModules[key] = props[key]
+	        return propsWithModules
+	      }, {modules: this.modules})
+	      return typeof paths === 'function' ? paths(propsWithModules) : paths
+	    },
+	    render: function () {
+	      return React.createElement(Component, this.getProps())
+	    }
+	  })
+	}
+
+
+/***/ },
+/* 179 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var React = __webpack_require__(10)
+	
+	module.exports = React.createClass({
+	  displayName: 'CerebralContainer',
+	  childContextTypes: {
+	    controller: React.PropTypes.object.isRequired
+	  },
+	  propTypes: {
+	    app: React.PropTypes.func,
+	    controller: React.PropTypes.object.isRequired
+	  },
+	  getChildContext: function () {
+	    return {
+	      controller: this.props.controller
+	    }
+	  },
+	  render: function () {
+	    return this.props.app ? React.createElement(this.props.app) : React.DOM.div(this.props)
+	  }
+	})
+
+
+/***/ },
+/* 180 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var React = __webpack_require__(10)
+	var Hoc = __webpack_require__(178)
+	
+	module.exports = function () {
+	  var paths
+	  var componentDefinition
+	  var Component = null
+	
+	  if (arguments.length === 2) {
+	    paths = arguments[0]
+	    componentDefinition = arguments[1]
+	  } else {
+	    paths = {}
+	    componentDefinition = arguments[0]
+	  }
+	
+	  if (typeof componentDefinition === 'function') {
+	    Component = componentDefinition
+	  } else {
+	    Component = React.createClass(componentDefinition)
+	  }
+	
+	  return Hoc(Component, paths)
+	}
+
+
+/***/ },
+/* 181 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var React = __webpack_require__(10)
+	var get = __webpack_require__(182)
+	
+	module.exports = React.createClass({
+	  contextTypes: {
+	    controller: React.PropTypes.object
+	  },
+	
+	  propTypes: {
+	    children: React.PropTypes.node,
+	    params: React.PropTypes.object,
+	    signal: React.PropTypes.oneOfType([
+	      React.PropTypes.func,
+	      React.PropTypes.string
+	    ]).isRequired
+	  },
+	
+	  componentWillMount: function () {
+	  },
+	
+	  onClick: function (e) {
+	    e.preventDefault()
+	    this.signal(this.props.params)
+	  },
+	
+	  render: function () {
+	    var controller = this.context.controller
+	    var router
+	    var signal
+	    var signalName
+	
+	    if (typeof this.props.signal === 'function') {
+	      signal = this.signal = this.props.signal
+	      signalName = signal.signalName
+	    } else {
+	      signalName = this.props.signal
+	      signal = this.signal = get(controller.getSignals(), signalName)
+	    }
+	
+	    var routerMeta = controller.getModules()['cerebral-module-router']
+	    if (routerMeta) {
+	      router = get(controller.getServices(), routerMeta.name)
+	    }
+	
+	    if (typeof signal !== 'function') {
+	      throw new Error('Cerebral React - You have to pass a signal or signal name to the Link component')
+	    }
+	
+	    var passedProps = this.props
+	    var props = Object.keys(passedProps).reduce(function (props, key) {
+	      props[key] = passedProps[key]
+	      return props
+	    }, {})
+	
+	    if (router && typeof router.getSignalUrl === 'function') {
+	      props.href = router.getSignalUrl(signalName, this.props.params) || undefined
+	    } else if (typeof signal.getUrl === 'function') {
+	      props.href = signal.getUrl(this.props.params || {})
+	    }
+	    if (!props.href) {
+	      props.onClick = this.onClick
+	    }
+	
+	    return React.DOM.a(props, this.props.children)
+	  }
+	})
+
+
+/***/ },
+/* 182 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/**
+	 * lodash 4.2.1 (Custom Build) <https://lodash.com/>
+	 * Build: `lodash modularize exports="npm" -o ./`
+	 * Copyright jQuery Foundation and other contributors <https://jquery.org/>
+	 * Released under MIT license <https://lodash.com/license>
+	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+	 */
+	var stringToPath = __webpack_require__(183);
+	
+	/** `Object#toString` result references. */
+	var symbolTag = '[object Symbol]';
+	
+	/** Used to match property names within property paths. */
+	var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/,
+	    reIsPlainProp = /^\w*$/;
+	
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+	
+	/**
+	 * Used to resolve the
+	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
+	 * of values.
+	 */
+	var objectToString = objectProto.toString;
+	
+	/**
+	 * The base implementation of `_.get` without support for default values.
+	 *
+	 * @private
+	 * @param {Object} object The object to query.
+	 * @param {Array|string} path The path of the property to get.
+	 * @returns {*} Returns the resolved value.
+	 */
+	function baseGet(object, path) {
+	  path = isKey(path, object) ? [path] : castPath(path);
+	
+	  var index = 0,
+	      length = path.length;
+	
+	  while (object != null && index < length) {
+	    object = object[path[index++]];
+	  }
+	  return (index && index == length) ? object : undefined;
+	}
+	
+	/**
+	 * Casts `value` to a path array if it's not one.
+	 *
+	 * @private
+	 * @param {*} value The value to inspect.
+	 * @returns {Array} Returns the cast property path array.
+	 */
+	function castPath(value) {
+	  return isArray(value) ? value : stringToPath(value);
+	}
+	
+	/**
+	 * Checks if `value` is a property name and not a property path.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @param {Object} [object] The object to query keys on.
+	 * @returns {boolean} Returns `true` if `value` is a property name, else `false`.
+	 */
+	function isKey(value, object) {
+	  var type = typeof value;
+	  if (type == 'number' || type == 'symbol') {
+	    return true;
+	  }
+	  return !isArray(value) &&
+	    (isSymbol(value) || reIsPlainProp.test(value) || !reIsDeepProp.test(value) ||
+	      (object != null && value in Object(object)));
+	}
+	
+	/**
+	 * Checks if `value` is classified as an `Array` object.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @type {Function}
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is correctly classified,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isArray([1, 2, 3]);
+	 * // => true
+	 *
+	 * _.isArray(document.body.children);
+	 * // => false
+	 *
+	 * _.isArray('abc');
+	 * // => false
+	 *
+	 * _.isArray(_.noop);
+	 * // => false
+	 */
+	var isArray = Array.isArray;
+	
+	/**
+	 * Checks if `value` is object-like. A value is object-like if it's not `null`
+	 * and has a `typeof` result of "object".
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+	 * @example
+	 *
+	 * _.isObjectLike({});
+	 * // => true
+	 *
+	 * _.isObjectLike([1, 2, 3]);
+	 * // => true
+	 *
+	 * _.isObjectLike(_.noop);
+	 * // => false
+	 *
+	 * _.isObjectLike(null);
+	 * // => false
+	 */
+	function isObjectLike(value) {
+	  return !!value && typeof value == 'object';
+	}
+	
+	/**
+	 * Checks if `value` is classified as a `Symbol` primitive or object.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is correctly classified,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isSymbol(Symbol.iterator);
+	 * // => true
+	 *
+	 * _.isSymbol('abc');
+	 * // => false
+	 */
+	function isSymbol(value) {
+	  return typeof value == 'symbol' ||
+	    (isObjectLike(value) && objectToString.call(value) == symbolTag);
+	}
+	
+	/**
+	 * Gets the value at `path` of `object`. If the resolved value is
+	 * `undefined`, the `defaultValue` is used in its place.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 3.7.0
+	 * @category Object
+	 * @param {Object} object The object to query.
+	 * @param {Array|string} path The path of the property to get.
+	 * @param {*} [defaultValue] The value returned for `undefined` resolved values.
+	 * @returns {*} Returns the resolved value.
+	 * @example
+	 *
+	 * var object = { 'a': [{ 'b': { 'c': 3 } }] };
+	 *
+	 * _.get(object, 'a[0].b.c');
+	 * // => 3
+	 *
+	 * _.get(object, ['a', '0', 'b', 'c']);
+	 * // => 3
+	 *
+	 * _.get(object, 'a.b.c', 'default');
+	 * // => 'default'
+	 */
+	function get(object, path, defaultValue) {
+	  var result = object == null ? undefined : baseGet(object, path);
+	  return result === undefined ? defaultValue : result;
+	}
+	
+	module.exports = get;
+
+
+/***/ },
+/* 183 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/* WEBPACK VAR INJECTION */(function(module, global) {/**
+	 * lodash 4.7.1 (Custom Build) <https://lodash.com/>
+	 * Build: `lodash modularize exports="npm" -o ./`
+	 * Copyright jQuery Foundation and other contributors <https://jquery.org/>
+	 * Released under MIT license <https://lodash.com/license>
+	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+	 */
+	
+	/** Used as the `TypeError` message for "Functions" methods. */
+	var FUNC_ERROR_TEXT = 'Expected a function';
+	
+	/** Used to stand-in for `undefined` hash values. */
+	var HASH_UNDEFINED = '__lodash_hash_undefined__';
+	
+	/** Used as references for various `Number` constants. */
+	var INFINITY = 1 / 0;
+	
+	/** `Object#toString` result references. */
+	var funcTag = '[object Function]',
+	    genTag = '[object GeneratorFunction]',
+	    symbolTag = '[object Symbol]';
+	
+	/** Used to match property names within property paths. */
+	var rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]/g;
+	
+	/**
+	 * Used to match `RegExp`
+	 * [syntax characters](http://ecma-international.org/ecma-262/6.0/#sec-patterns).
+	 */
+	var reRegExpChar = /[\\^$.*+?()[\]{}|]/g;
+	
+	/** Used to match backslashes in property paths. */
+	var reEscapeChar = /\\(\\)?/g;
+	
+	/** Used to detect host constructors (Safari). */
+	var reIsHostCtor = /^\[object .+?Constructor\]$/;
+	
+	/** Used to determine if values are of the language type `Object`. */
+	var objectTypes = {
+	  'function': true,
+	  'object': true
+	};
+	
+	/** Detect free variable `exports`. */
+	var freeExports = (objectTypes[typeof exports] && exports && !exports.nodeType)
+	  ? exports
+	  : undefined;
+	
+	/** Detect free variable `module`. */
+	var freeModule = (objectTypes[typeof module] && module && !module.nodeType)
+	  ? module
+	  : undefined;
+	
+	/** Detect free variable `global` from Node.js. */
+	var freeGlobal = checkGlobal(freeExports && freeModule && typeof global == 'object' && global);
+	
+	/** Detect free variable `self`. */
+	var freeSelf = checkGlobal(objectTypes[typeof self] && self);
+	
+	/** Detect free variable `window`. */
+	var freeWindow = checkGlobal(objectTypes[typeof window] && window);
+	
+	/** Detect `this` as the global object. */
+	var thisGlobal = checkGlobal(objectTypes[typeof this] && this);
+	
+	/**
+	 * Used as a reference to the global object.
+	 *
+	 * The `this` value is used if it's the global object to avoid Greasemonkey's
+	 * restricted `window` object, otherwise the `window` object is used.
+	 */
+	var root = freeGlobal ||
+	  ((freeWindow !== (thisGlobal && thisGlobal.window)) && freeWindow) ||
+	    freeSelf || thisGlobal || Function('return this')();
+	
+	/**
+	 * Checks if `value` is a global object.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {null|Object} Returns `value` if it's a global object, else `null`.
+	 */
+	function checkGlobal(value) {
+	  return (value && value.Object === Object) ? value : null;
+	}
+	
+	/**
+	 * Checks if `value` is a host object in IE < 9.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is a host object, else `false`.
+	 */
+	function isHostObject(value) {
+	  // Many host objects are `Object` objects that can coerce to strings
+	  // despite having improperly defined `toString` methods.
+	  var result = false;
+	  if (value != null && typeof value.toString != 'function') {
+	    try {
+	      result = !!(value + '');
+	    } catch (e) {}
+	  }
+	  return result;
+	}
+	
+	/** Used for built-in method references. */
+	var arrayProto = Array.prototype,
+	    objectProto = Object.prototype;
+	
+	/** Used to resolve the decompiled source of functions. */
+	var funcToString = Function.prototype.toString;
+	
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+	
+	/**
+	 * Used to resolve the
+	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
+	 * of values.
+	 */
+	var objectToString = objectProto.toString;
+	
+	/** Used to detect if a method is native. */
+	var reIsNative = RegExp('^' +
+	  funcToString.call(hasOwnProperty).replace(reRegExpChar, '\\$&')
+	  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+	);
+	
+	/** Built-in value references. */
+	var Symbol = root.Symbol,
+	    splice = arrayProto.splice;
+	
+	/* Built-in method references that are verified to be native. */
+	var Map = getNative(root, 'Map'),
+	    nativeCreate = getNative(Object, 'create');
+	
+	/** Used to convert symbols to primitives and strings. */
+	var symbolProto = Symbol ? Symbol.prototype : undefined,
+	    symbolToString = symbolProto ? symbolProto.toString : undefined;
+	
+	/**
+	 * Creates a hash object.
+	 *
+	 * @private
+	 * @constructor
+	 * @returns {Object} Returns the new hash object.
+	 */
+	function Hash() {}
+	
+	/**
+	 * Removes `key` and its value from the hash.
+	 *
+	 * @private
+	 * @param {Object} hash The hash to modify.
+	 * @param {string} key The key of the value to remove.
+	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+	 */
+	function hashDelete(hash, key) {
+	  return hashHas(hash, key) && delete hash[key];
+	}
+	
+	/**
+	 * Gets the hash value for `key`.
+	 *
+	 * @private
+	 * @param {Object} hash The hash to query.
+	 * @param {string} key The key of the value to get.
+	 * @returns {*} Returns the entry value.
+	 */
+	function hashGet(hash, key) {
+	  if (nativeCreate) {
+	    var result = hash[key];
+	    return result === HASH_UNDEFINED ? undefined : result;
+	  }
+	  return hasOwnProperty.call(hash, key) ? hash[key] : undefined;
+	}
+	
+	/**
+	 * Checks if a hash value for `key` exists.
+	 *
+	 * @private
+	 * @param {Object} hash The hash to query.
+	 * @param {string} key The key of the entry to check.
+	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+	 */
+	function hashHas(hash, key) {
+	  return nativeCreate ? hash[key] !== undefined : hasOwnProperty.call(hash, key);
+	}
+	
+	/**
+	 * Sets the hash `key` to `value`.
+	 *
+	 * @private
+	 * @param {Object} hash The hash to modify.
+	 * @param {string} key The key of the value to set.
+	 * @param {*} value The value to set.
+	 */
+	function hashSet(hash, key, value) {
+	  hash[key] = (nativeCreate && value === undefined) ? HASH_UNDEFINED : value;
+	}
+	
+	// Avoid inheriting from `Object.prototype` when possible.
+	Hash.prototype = nativeCreate ? nativeCreate(null) : objectProto;
+	
+	/**
+	 * Creates a map cache object to store key-value pairs.
+	 *
+	 * @private
+	 * @constructor
+	 * @param {Array} [values] The values to cache.
+	 */
+	function MapCache(values) {
+	  var index = -1,
+	      length = values ? values.length : 0;
+	
+	  this.clear();
+	  while (++index < length) {
+	    var entry = values[index];
+	    this.set(entry[0], entry[1]);
+	  }
+	}
+	
+	/**
+	 * Removes all key-value entries from the map.
+	 *
+	 * @private
+	 * @name clear
+	 * @memberOf MapCache
+	 */
+	function mapClear() {
+	  this.__data__ = {
+	    'hash': new Hash,
+	    'map': Map ? new Map : [],
+	    'string': new Hash
+	  };
+	}
+	
+	/**
+	 * Removes `key` and its value from the map.
+	 *
+	 * @private
+	 * @name delete
+	 * @memberOf MapCache
+	 * @param {string} key The key of the value to remove.
+	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+	 */
+	function mapDelete(key) {
+	  var data = this.__data__;
+	  if (isKeyable(key)) {
+	    return hashDelete(typeof key == 'string' ? data.string : data.hash, key);
+	  }
+	  return Map ? data.map['delete'](key) : assocDelete(data.map, key);
+	}
+	
+	/**
+	 * Gets the map value for `key`.
+	 *
+	 * @private
+	 * @name get
+	 * @memberOf MapCache
+	 * @param {string} key The key of the value to get.
+	 * @returns {*} Returns the entry value.
+	 */
+	function mapGet(key) {
+	  var data = this.__data__;
+	  if (isKeyable(key)) {
+	    return hashGet(typeof key == 'string' ? data.string : data.hash, key);
+	  }
+	  return Map ? data.map.get(key) : assocGet(data.map, key);
+	}
+	
+	/**
+	 * Checks if a map value for `key` exists.
+	 *
+	 * @private
+	 * @name has
+	 * @memberOf MapCache
+	 * @param {string} key The key of the entry to check.
+	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+	 */
+	function mapHas(key) {
+	  var data = this.__data__;
+	  if (isKeyable(key)) {
+	    return hashHas(typeof key == 'string' ? data.string : data.hash, key);
+	  }
+	  return Map ? data.map.has(key) : assocHas(data.map, key);
+	}
+	
+	/**
+	 * Sets the map `key` to `value`.
+	 *
+	 * @private
+	 * @name set
+	 * @memberOf MapCache
+	 * @param {string} key The key of the value to set.
+	 * @param {*} value The value to set.
+	 * @returns {Object} Returns the map cache instance.
+	 */
+	function mapSet(key, value) {
+	  var data = this.__data__;
+	  if (isKeyable(key)) {
+	    hashSet(typeof key == 'string' ? data.string : data.hash, key, value);
+	  } else if (Map) {
+	    data.map.set(key, value);
+	  } else {
+	    assocSet(data.map, key, value);
+	  }
+	  return this;
+	}
+	
+	// Add methods to `MapCache`.
+	MapCache.prototype.clear = mapClear;
+	MapCache.prototype['delete'] = mapDelete;
+	MapCache.prototype.get = mapGet;
+	MapCache.prototype.has = mapHas;
+	MapCache.prototype.set = mapSet;
+	
+	/**
+	 * Removes `key` and its value from the associative array.
+	 *
+	 * @private
+	 * @param {Array} array The array to modify.
+	 * @param {string} key The key of the value to remove.
+	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+	 */
+	function assocDelete(array, key) {
+	  var index = assocIndexOf(array, key);
+	  if (index < 0) {
+	    return false;
+	  }
+	  var lastIndex = array.length - 1;
+	  if (index == lastIndex) {
+	    array.pop();
+	  } else {
+	    splice.call(array, index, 1);
+	  }
+	  return true;
+	}
+	
+	/**
+	 * Gets the associative array value for `key`.
+	 *
+	 * @private
+	 * @param {Array} array The array to query.
+	 * @param {string} key The key of the value to get.
+	 * @returns {*} Returns the entry value.
+	 */
+	function assocGet(array, key) {
+	  var index = assocIndexOf(array, key);
+	  return index < 0 ? undefined : array[index][1];
+	}
+	
+	/**
+	 * Checks if an associative array value for `key` exists.
+	 *
+	 * @private
+	 * @param {Array} array The array to query.
+	 * @param {string} key The key of the entry to check.
+	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+	 */
+	function assocHas(array, key) {
+	  return assocIndexOf(array, key) > -1;
+	}
+	
+	/**
+	 * Gets the index at which the `key` is found in `array` of key-value pairs.
+	 *
+	 * @private
+	 * @param {Array} array The array to search.
+	 * @param {*} key The key to search for.
+	 * @returns {number} Returns the index of the matched value, else `-1`.
+	 */
+	function assocIndexOf(array, key) {
+	  var length = array.length;
+	  while (length--) {
+	    if (eq(array[length][0], key)) {
+	      return length;
+	    }
+	  }
+	  return -1;
+	}
+	
+	/**
+	 * Sets the associative array `key` to `value`.
+	 *
+	 * @private
+	 * @param {Array} array The array to modify.
+	 * @param {string} key The key of the value to set.
+	 * @param {*} value The value to set.
+	 */
+	function assocSet(array, key, value) {
+	  var index = assocIndexOf(array, key);
+	  if (index < 0) {
+	    array.push([key, value]);
+	  } else {
+	    array[index][1] = value;
+	  }
+	}
+	
+	/**
+	 * Gets the native function at `key` of `object`.
+	 *
+	 * @private
+	 * @param {Object} object The object to query.
+	 * @param {string} key The key of the method to get.
+	 * @returns {*} Returns the function if it's native, else `undefined`.
+	 */
+	function getNative(object, key) {
+	  var value = object[key];
+	  return isNative(value) ? value : undefined;
+	}
+	
+	/**
+	 * Checks if `value` is suitable for use as unique object key.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is suitable, else `false`.
+	 */
+	function isKeyable(value) {
+	  var type = typeof value;
+	  return type == 'number' || type == 'boolean' ||
+	    (type == 'string' && value != '__proto__') || value == null;
+	}
+	
+	/**
+	 * Converts `string` to a property path array.
+	 *
+	 * @private
+	 * @param {string} string The string to convert.
+	 * @returns {Array} Returns the property path array.
+	 */
+	var stringToPath = memoize(function(string) {
+	  var result = [];
+	  toString(string).replace(rePropName, function(match, number, quote, string) {
+	    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
+	  });
+	  return result;
+	});
+	
+	/**
+	 * Converts `func` to its source code.
+	 *
+	 * @private
+	 * @param {Function} func The function to process.
+	 * @returns {string} Returns the source code.
+	 */
+	function toSource(func) {
+	  if (func != null) {
+	    try {
+	      return funcToString.call(func);
+	    } catch (e) {}
+	    try {
+	      return (func + '');
+	    } catch (e) {}
+	  }
+	  return '';
+	}
+	
+	/**
+	 * Creates a function that memoizes the result of `func`. If `resolver` is
+	 * provided, it determines the cache key for storing the result based on the
+	 * arguments provided to the memoized function. By default, the first argument
+	 * provided to the memoized function is used as the map cache key. The `func`
+	 * is invoked with the `this` binding of the memoized function.
+	 *
+	 * **Note:** The cache is exposed as the `cache` property on the memoized
+	 * function. Its creation may be customized by replacing the `_.memoize.Cache`
+	 * constructor with one whose instances implement the
+	 * [`Map`](http://ecma-international.org/ecma-262/6.0/#sec-properties-of-the-map-prototype-object)
+	 * method interface of `delete`, `get`, `has`, and `set`.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Function
+	 * @param {Function} func The function to have its output memoized.
+	 * @param {Function} [resolver] The function to resolve the cache key.
+	 * @returns {Function} Returns the new memoizing function.
+	 * @example
+	 *
+	 * var object = { 'a': 1, 'b': 2 };
+	 * var other = { 'c': 3, 'd': 4 };
+	 *
+	 * var values = _.memoize(_.values);
+	 * values(object);
+	 * // => [1, 2]
+	 *
+	 * values(other);
+	 * // => [3, 4]
+	 *
+	 * object.a = 2;
+	 * values(object);
+	 * // => [1, 2]
+	 *
+	 * // Modify the result cache.
+	 * values.cache.set(object, ['a', 'b']);
+	 * values(object);
+	 * // => ['a', 'b']
+	 *
+	 * // Replace `_.memoize.Cache`.
+	 * _.memoize.Cache = WeakMap;
+	 */
+	function memoize(func, resolver) {
+	  if (typeof func != 'function' || (resolver && typeof resolver != 'function')) {
+	    throw new TypeError(FUNC_ERROR_TEXT);
+	  }
+	  var memoized = function() {
+	    var args = arguments,
+	        key = resolver ? resolver.apply(this, args) : args[0],
+	        cache = memoized.cache;
+	
+	    if (cache.has(key)) {
+	      return cache.get(key);
+	    }
+	    var result = func.apply(this, args);
+	    memoized.cache = cache.set(key, result);
+	    return result;
+	  };
+	  memoized.cache = new (memoize.Cache || MapCache);
+	  return memoized;
+	}
+	
+	// Assign cache to `_.memoize`.
+	memoize.Cache = MapCache;
+	
+	/**
+	 * Performs a
+	 * [`SameValueZero`](http://ecma-international.org/ecma-262/6.0/#sec-samevaluezero)
+	 * comparison between two values to determine if they are equivalent.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to compare.
+	 * @param {*} other The other value to compare.
+	 * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+	 * @example
+	 *
+	 * var object = { 'user': 'fred' };
+	 * var other = { 'user': 'fred' };
+	 *
+	 * _.eq(object, object);
+	 * // => true
+	 *
+	 * _.eq(object, other);
+	 * // => false
+	 *
+	 * _.eq('a', 'a');
+	 * // => true
+	 *
+	 * _.eq('a', Object('a'));
+	 * // => false
+	 *
+	 * _.eq(NaN, NaN);
+	 * // => true
+	 */
+	function eq(value, other) {
+	  return value === other || (value !== value && other !== other);
+	}
+	
+	/**
+	 * Checks if `value` is classified as a `Function` object.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is correctly classified,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isFunction(_);
+	 * // => true
+	 *
+	 * _.isFunction(/abc/);
+	 * // => false
+	 */
+	function isFunction(value) {
+	  // The use of `Object#toString` avoids issues with the `typeof` operator
+	  // in Safari 8 which returns 'object' for typed array and weak map constructors,
+	  // and PhantomJS 1.9 which returns 'function' for `NodeList` instances.
+	  var tag = isObject(value) ? objectToString.call(value) : '';
+	  return tag == funcTag || tag == genTag;
+	}
+	
+	/**
+	 * Checks if `value` is the
+	 * [language type](http://www.ecma-international.org/ecma-262/6.0/#sec-ecmascript-language-types)
+	 * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+	 * @example
+	 *
+	 * _.isObject({});
+	 * // => true
+	 *
+	 * _.isObject([1, 2, 3]);
+	 * // => true
+	 *
+	 * _.isObject(_.noop);
+	 * // => true
+	 *
+	 * _.isObject(null);
+	 * // => false
+	 */
+	function isObject(value) {
+	  var type = typeof value;
+	  return !!value && (type == 'object' || type == 'function');
+	}
+	
+	/**
+	 * Checks if `value` is object-like. A value is object-like if it's not `null`
+	 * and has a `typeof` result of "object".
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+	 * @example
+	 *
+	 * _.isObjectLike({});
+	 * // => true
+	 *
+	 * _.isObjectLike([1, 2, 3]);
+	 * // => true
+	 *
+	 * _.isObjectLike(_.noop);
+	 * // => false
+	 *
+	 * _.isObjectLike(null);
+	 * // => false
+	 */
+	function isObjectLike(value) {
+	  return !!value && typeof value == 'object';
+	}
+	
+	/**
+	 * Checks if `value` is a native function.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 3.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is a native function,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isNative(Array.prototype.push);
+	 * // => true
+	 *
+	 * _.isNative(_);
+	 * // => false
+	 */
+	function isNative(value) {
+	  if (!isObject(value)) {
+	    return false;
+	  }
+	  var pattern = (isFunction(value) || isHostObject(value)) ? reIsNative : reIsHostCtor;
+	  return pattern.test(toSource(value));
+	}
+	
+	/**
+	 * Checks if `value` is classified as a `Symbol` primitive or object.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is correctly classified,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isSymbol(Symbol.iterator);
+	 * // => true
+	 *
+	 * _.isSymbol('abc');
+	 * // => false
+	 */
+	function isSymbol(value) {
+	  return typeof value == 'symbol' ||
+	    (isObjectLike(value) && objectToString.call(value) == symbolTag);
+	}
+	
+	/**
+	 * Converts `value` to a string if it's not one. An empty string is returned
+	 * for `null` and `undefined` values. The sign of `-0` is preserved.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to process.
+	 * @returns {string} Returns the string.
+	 * @example
+	 *
+	 * _.toString(null);
+	 * // => ''
+	 *
+	 * _.toString(-0);
+	 * // => '-0'
+	 *
+	 * _.toString([1, 2, 3]);
+	 * // => '1,2,3'
+	 */
+	function toString(value) {
+	  // Exit early for strings to avoid a performance hit in some environments.
+	  if (typeof value == 'string') {
+	    return value;
+	  }
+	  if (value == null) {
+	    return '';
+	  }
+	  if (isSymbol(value)) {
+	    return symbolToString ? symbolToString.call(value) : '';
+	  }
+	  var result = (value + '');
+	  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
+	}
+	
+	module.exports = stringToPath;
+	
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(184)(module), (function() { return this; }())))
+
+/***/ },
+/* 184 */
+/***/ function(module, exports) {
+
+	module.exports = function(module) {
+		if(!module.webpackPolyfill) {
+			module.deprecate = function() {};
+			module.paths = [];
+			// module.parent = undefined by default
+			module.children = [];
+			module.webpackPolyfill = 1;
+		}
+		return module;
+	}
+
+
+/***/ },
+/* 185 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _cerebral = __webpack_require__(186);
+	
+	var _cerebral2 = _interopRequireDefault(_cerebral);
+	
+	var _cerebralModelBaobab = __webpack_require__(239);
+	
+	var _cerebralModelBaobab2 = _interopRequireDefault(_cerebralModelBaobab);
+	
+	var _cerebralModuleHttp = __webpack_require__(248);
+	
+	var _cerebralModuleHttp2 = _interopRequireDefault(_cerebralModuleHttp);
+	
+	var _cerebralModuleRouter = __webpack_require__(266);
+	
+	var _cerebralModuleRouter2 = _interopRequireDefault(_cerebralModuleRouter);
+	
+	var _cerebralModuleDevtools = __webpack_require__(279);
+	
+	var _cerebralModuleDevtools2 = _interopRequireDefault(_cerebralModuleDevtools);
+	
+	var _App = __webpack_require__(290);
+	
+	var _App2 = _interopRequireDefault(_App);
+	
+	var _Refs = __webpack_require__(334);
+	
+	var _Refs2 = _interopRequireDefault(_Refs);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	var controller = (0, _cerebral2.default)((0, _cerebralModelBaobab2.default)({}));
+	
+	controller.addModules({
+	  app: (0, _App2.default)(),
+	  refs: (0, _Refs2.default)(),
+	  http: (0, _cerebralModuleHttp2.default)(),
+	  devtools: (0, _cerebralModuleDevtools2.default)(),
+	  router: (0, _cerebralModuleRouter2.default)({
+	    '/': 'app.footer.filterClicked'
+	  }, {
+	    mapper: { query: true }
+	  })
+	});
+	
+	exports.default = controller;
+
+/***/ },
+/* 186 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var get = __webpack_require__(187)
+	var CreateSignalFactory = __webpack_require__(226)
+	var CreateRegisterModules = __webpack_require__(236)
+	var Compute = __webpack_require__(237)
+	var EventEmitter = __webpack_require__(238).EventEmitter
 	
 	var Controller = function (Model) {
 	  var controller = new EventEmitter()
@@ -20655,10 +21936,10 @@
 
 
 /***/ },
-/* 176 */
+/* 187 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var baseGet = __webpack_require__(177);
+	var baseGet = __webpack_require__(188);
 	
 	/**
 	 * Gets the value at `path` of `object`. If the resolved value is
@@ -20694,11 +21975,11 @@
 
 
 /***/ },
-/* 177 */
+/* 188 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var castPath = __webpack_require__(178),
-	    isKey = __webpack_require__(215);
+	var castPath = __webpack_require__(189),
+	    isKey = __webpack_require__(225);
 	
 	/**
 	 * The base implementation of `_.get` without support for default values.
@@ -20724,11 +22005,11 @@
 
 
 /***/ },
-/* 178 */
+/* 189 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var isArray = __webpack_require__(179),
-	    stringToPath = __webpack_require__(180);
+	var isArray = __webpack_require__(190),
+	    stringToPath = __webpack_require__(191);
 	
 	/**
 	 * Casts `value` to a path array if it's not one.
@@ -20745,7 +22026,7 @@
 
 
 /***/ },
-/* 179 */
+/* 190 */
 /***/ function(module, exports) {
 
 	/**
@@ -20779,11 +22060,11 @@
 
 
 /***/ },
-/* 180 */
+/* 191 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var memoize = __webpack_require__(181),
-	    toString = __webpack_require__(211);
+	var memoize = __webpack_require__(192),
+	    toString = __webpack_require__(221);
 	
 	/** Used to match property names within property paths. */
 	var rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]/g;
@@ -20810,10 +22091,10 @@
 
 
 /***/ },
-/* 181 */
+/* 192 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var MapCache = __webpack_require__(182);
+	var MapCache = __webpack_require__(193);
 	
 	/** Used as the `TypeError` message for "Functions" methods. */
 	var FUNC_ERROR_TEXT = 'Expected a function';
@@ -20889,14 +22170,14 @@
 
 
 /***/ },
-/* 182 */
+/* 193 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var mapClear = __webpack_require__(183),
-	    mapDelete = __webpack_require__(196),
-	    mapGet = __webpack_require__(203),
-	    mapHas = __webpack_require__(206),
-	    mapSet = __webpack_require__(208);
+	var mapClear = __webpack_require__(194),
+	    mapDelete = __webpack_require__(206),
+	    mapGet = __webpack_require__(213),
+	    mapHas = __webpack_require__(216),
+	    mapSet = __webpack_require__(218);
 	
 	/**
 	 * Creates a map cache object to store key-value pairs.
@@ -20927,11 +22208,11 @@
 
 
 /***/ },
-/* 183 */
+/* 194 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Hash = __webpack_require__(184),
-	    Map = __webpack_require__(192);
+	var Hash = __webpack_require__(195),
+	    Map = __webpack_require__(203);
 	
 	/**
 	 * Removes all key-value entries from the map.
@@ -20952,10 +22233,10 @@
 
 
 /***/ },
-/* 184 */
+/* 195 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var nativeCreate = __webpack_require__(185);
+	var nativeCreate = __webpack_require__(196);
 	
 	/** Used for built-in method references. */
 	var objectProto = Object.prototype;
@@ -20976,10 +22257,10 @@
 
 
 /***/ },
-/* 185 */
+/* 196 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var getNative = __webpack_require__(186);
+	var getNative = __webpack_require__(197);
 	
 	/* Built-in method references that are verified to be native. */
 	var nativeCreate = getNative(Object, 'create');
@@ -20988,10 +22269,10 @@
 
 
 /***/ },
-/* 186 */
+/* 197 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var isNative = __webpack_require__(187);
+	var isNative = __webpack_require__(198);
 	
 	/**
 	 * Gets the native function at `key` of `object`.
@@ -21010,13 +22291,13 @@
 
 
 /***/ },
-/* 187 */
+/* 198 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var isFunction = __webpack_require__(188),
-	    isHostObject = __webpack_require__(190),
-	    isObject = __webpack_require__(189),
-	    toSource = __webpack_require__(191);
+	var isFunction = __webpack_require__(199),
+	    isHostObject = __webpack_require__(201),
+	    isObject = __webpack_require__(200),
+	    toSource = __webpack_require__(202);
 	
 	/**
 	 * Used to match `RegExp`
@@ -21072,10 +22353,10 @@
 
 
 /***/ },
-/* 188 */
+/* 199 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var isObject = __webpack_require__(189);
+	var isObject = __webpack_require__(200);
 	
 	/** `Object#toString` result references. */
 	var funcTag = '[object Function]',
@@ -21121,7 +22402,7 @@
 
 
 /***/ },
-/* 189 */
+/* 200 */
 /***/ function(module, exports) {
 
 	/**
@@ -21158,7 +22439,7 @@
 
 
 /***/ },
-/* 190 */
+/* 201 */
 /***/ function(module, exports) {
 
 	/**
@@ -21184,7 +22465,7 @@
 
 
 /***/ },
-/* 191 */
+/* 202 */
 /***/ function(module, exports) {
 
 	/** Used to resolve the decompiled source of functions. */
@@ -21213,11 +22494,11 @@
 
 
 /***/ },
-/* 192 */
+/* 203 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var getNative = __webpack_require__(186),
-	    root = __webpack_require__(193);
+	var getNative = __webpack_require__(197),
+	    root = __webpack_require__(204);
 	
 	/* Built-in method references that are verified to be native. */
 	var Map = getNative(root, 'Map');
@@ -21226,10 +22507,10 @@
 
 
 /***/ },
-/* 193 */
+/* 204 */
 /***/ function(module, exports, __webpack_require__) {
 
-	/* WEBPACK VAR INJECTION */(function(module, global) {var checkGlobal = __webpack_require__(195);
+	/* WEBPACK VAR INJECTION */(function(module, global) {var checkGlobal = __webpack_require__(205);
 	
 	/** Used to determine if values are of the language type `Object`. */
 	var objectTypes = {
@@ -21271,26 +22552,10 @@
 	
 	module.exports = root;
 	
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(194)(module), (function() { return this; }())))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(184)(module), (function() { return this; }())))
 
 /***/ },
-/* 194 */
-/***/ function(module, exports) {
-
-	module.exports = function(module) {
-		if(!module.webpackPolyfill) {
-			module.deprecate = function() {};
-			module.paths = [];
-			// module.parent = undefined by default
-			module.children = [];
-			module.webpackPolyfill = 1;
-		}
-		return module;
-	}
-
-
-/***/ },
-/* 195 */
+/* 205 */
 /***/ function(module, exports) {
 
 	/**
@@ -21308,13 +22573,13 @@
 
 
 /***/ },
-/* 196 */
+/* 206 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Map = __webpack_require__(192),
-	    assocDelete = __webpack_require__(197),
-	    hashDelete = __webpack_require__(200),
-	    isKeyable = __webpack_require__(202);
+	var Map = __webpack_require__(203),
+	    assocDelete = __webpack_require__(207),
+	    hashDelete = __webpack_require__(210),
+	    isKeyable = __webpack_require__(212);
 	
 	/**
 	 * Removes `key` and its value from the map.
@@ -21337,10 +22602,10 @@
 
 
 /***/ },
-/* 197 */
+/* 207 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var assocIndexOf = __webpack_require__(198);
+	var assocIndexOf = __webpack_require__(208);
 	
 	/** Used for built-in method references. */
 	var arrayProto = Array.prototype;
@@ -21374,10 +22639,10 @@
 
 
 /***/ },
-/* 198 */
+/* 208 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var eq = __webpack_require__(199);
+	var eq = __webpack_require__(209);
 	
 	/**
 	 * Gets the index at which the `key` is found in `array` of key-value pairs.
@@ -21401,7 +22666,7 @@
 
 
 /***/ },
-/* 199 */
+/* 209 */
 /***/ function(module, exports) {
 
 	/**
@@ -21444,10 +22709,10 @@
 
 
 /***/ },
-/* 200 */
+/* 210 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var hashHas = __webpack_require__(201);
+	var hashHas = __webpack_require__(211);
 	
 	/**
 	 * Removes `key` and its value from the hash.
@@ -21465,10 +22730,10 @@
 
 
 /***/ },
-/* 201 */
+/* 211 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var nativeCreate = __webpack_require__(185);
+	var nativeCreate = __webpack_require__(196);
 	
 	/** Used for built-in method references. */
 	var objectProto = Object.prototype;
@@ -21492,7 +22757,7 @@
 
 
 /***/ },
-/* 202 */
+/* 212 */
 /***/ function(module, exports) {
 
 	/**
@@ -21512,13 +22777,13 @@
 
 
 /***/ },
-/* 203 */
+/* 213 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Map = __webpack_require__(192),
-	    assocGet = __webpack_require__(204),
-	    hashGet = __webpack_require__(205),
-	    isKeyable = __webpack_require__(202);
+	var Map = __webpack_require__(203),
+	    assocGet = __webpack_require__(214),
+	    hashGet = __webpack_require__(215),
+	    isKeyable = __webpack_require__(212);
 	
 	/**
 	 * Gets the map value for `key`.
@@ -21541,10 +22806,10 @@
 
 
 /***/ },
-/* 204 */
+/* 214 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var assocIndexOf = __webpack_require__(198);
+	var assocIndexOf = __webpack_require__(208);
 	
 	/**
 	 * Gets the associative array value for `key`.
@@ -21563,10 +22828,10 @@
 
 
 /***/ },
-/* 205 */
+/* 215 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var nativeCreate = __webpack_require__(185);
+	var nativeCreate = __webpack_require__(196);
 	
 	/** Used to stand-in for `undefined` hash values. */
 	var HASH_UNDEFINED = '__lodash_hash_undefined__';
@@ -21597,13 +22862,13 @@
 
 
 /***/ },
-/* 206 */
+/* 216 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Map = __webpack_require__(192),
-	    assocHas = __webpack_require__(207),
-	    hashHas = __webpack_require__(201),
-	    isKeyable = __webpack_require__(202);
+	var Map = __webpack_require__(203),
+	    assocHas = __webpack_require__(217),
+	    hashHas = __webpack_require__(211),
+	    isKeyable = __webpack_require__(212);
 	
 	/**
 	 * Checks if a map value for `key` exists.
@@ -21626,10 +22891,10 @@
 
 
 /***/ },
-/* 207 */
+/* 217 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var assocIndexOf = __webpack_require__(198);
+	var assocIndexOf = __webpack_require__(208);
 	
 	/**
 	 * Checks if an associative array value for `key` exists.
@@ -21647,13 +22912,13 @@
 
 
 /***/ },
-/* 208 */
+/* 218 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Map = __webpack_require__(192),
-	    assocSet = __webpack_require__(209),
-	    hashSet = __webpack_require__(210),
-	    isKeyable = __webpack_require__(202);
+	var Map = __webpack_require__(203),
+	    assocSet = __webpack_require__(219),
+	    hashSet = __webpack_require__(220),
+	    isKeyable = __webpack_require__(212);
 	
 	/**
 	 * Sets the map `key` to `value`.
@@ -21681,10 +22946,10 @@
 
 
 /***/ },
-/* 209 */
+/* 219 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var assocIndexOf = __webpack_require__(198);
+	var assocIndexOf = __webpack_require__(208);
 	
 	/**
 	 * Sets the associative array `key` to `value`.
@@ -21707,10 +22972,10 @@
 
 
 /***/ },
-/* 210 */
+/* 220 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var nativeCreate = __webpack_require__(185);
+	var nativeCreate = __webpack_require__(196);
 	
 	/** Used to stand-in for `undefined` hash values. */
 	var HASH_UNDEFINED = '__lodash_hash_undefined__';
@@ -21731,11 +22996,11 @@
 
 
 /***/ },
-/* 211 */
+/* 221 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Symbol = __webpack_require__(212),
-	    isSymbol = __webpack_require__(213);
+	var Symbol = __webpack_require__(222),
+	    isSymbol = __webpack_require__(223);
 	
 	/** Used as references for various `Number` constants. */
 	var INFINITY = 1 / 0;
@@ -21784,10 +23049,10 @@
 
 
 /***/ },
-/* 212 */
+/* 222 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var root = __webpack_require__(193);
+	var root = __webpack_require__(204);
 	
 	/** Built-in value references. */
 	var Symbol = root.Symbol;
@@ -21796,10 +23061,10 @@
 
 
 /***/ },
-/* 213 */
+/* 223 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var isObjectLike = __webpack_require__(214);
+	var isObjectLike = __webpack_require__(224);
 	
 	/** `Object#toString` result references. */
 	var symbolTag = '[object Symbol]';
@@ -21841,7 +23106,7 @@
 
 
 /***/ },
-/* 214 */
+/* 224 */
 /***/ function(module, exports) {
 
 	/**
@@ -21876,11 +23141,11 @@
 
 
 /***/ },
-/* 215 */
+/* 225 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var isArray = __webpack_require__(179),
-	    isSymbol = __webpack_require__(213);
+	var isArray = __webpack_require__(190),
+	    isSymbol = __webpack_require__(223);
 	
 	/** Used to match property names within property paths. */
 	var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/,
@@ -21908,17 +23173,17 @@
 
 
 /***/ },
-/* 216 */
+/* 226 */
 /***/ function(module, exports, __webpack_require__) {
 
-	/* WEBPACK VAR INJECTION */(function(global) {var utils = __webpack_require__(217)
-	var analyze = __webpack_require__(219)
-	var staticTree = __webpack_require__(220)
-	var createContext = __webpack_require__(221)
-	var inputProvider = __webpack_require__(222)
-	var stateProvider = __webpack_require__(223)
-	var servicesProvider = __webpack_require__(224)
-	var outputProvider = __webpack_require__(225)
+	/* WEBPACK VAR INJECTION */(function(global) {var utils = __webpack_require__(227)
+	var analyze = __webpack_require__(229)
+	var staticTree = __webpack_require__(230)
+	var createContext = __webpack_require__(231)
+	var inputProvider = __webpack_require__(232)
+	var stateProvider = __webpack_require__(233)
+	var servicesProvider = __webpack_require__(234)
+	var outputProvider = __webpack_require__(235)
 	
 	var requestAnimationFrame = global.requestAnimationFrame || function (cb) {
 	  setTimeout(cb, 0)
@@ -22219,10 +23484,10 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 217 */
+/* 227 */
 /***/ function(module, exports, __webpack_require__) {
 
-	/* WEBPACK VAR INJECTION */(function(global, process) {var types = __webpack_require__(218)
+	/* WEBPACK VAR INJECTION */(function(global, process) {var types = __webpack_require__(228)
 	
 	module.exports = {
 	  getFunctionName: function (fun) {
@@ -22333,7 +23598,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(12)))
 
 /***/ },
-/* 218 */
+/* 228 */
 /***/ function(module, exports) {
 
 	module.exports = function (type, value) {
@@ -22382,10 +23647,10 @@
 
 
 /***/ },
-/* 219 */
+/* 229 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var utils = __webpack_require__(217)
+	var utils = __webpack_require__(227)
 	
 	module.exports = function (signalName, actions) {
 	  var traverse = function (actions, parentActions, parentIndex) {
@@ -22462,10 +23727,10 @@
 
 
 /***/ },
-/* 220 */
+/* 230 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var utils = __webpack_require__(217)
+	var utils = __webpack_require__(227)
 	
 	var traverse = function (item, parentItem, path, actions, isSync) {
 	  var nextItem
@@ -22536,7 +23801,7 @@
 
 
 /***/ },
-/* 221 */
+/* 231 */
 /***/ function(module, exports) {
 
 	module.exports = function (contextProviders, execution, controller) {
@@ -22561,10 +23826,10 @@
 
 
 /***/ },
-/* 222 */
+/* 232 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var utils = __webpack_require__(217)
+	var utils = __webpack_require__(227)
 	
 	module.exports = function (context, execution) {
 	  var action = execution.action
@@ -22591,7 +23856,7 @@
 
 
 /***/ },
-/* 223 */
+/* 233 */
 /***/ function(module, exports) {
 
 	module.exports = function (context, execution, controller) {
@@ -22648,7 +23913,7 @@
 
 
 /***/ },
-/* 224 */
+/* 234 */
 /***/ function(module, exports) {
 
 	module.exports = function (context, execution, controller) {
@@ -22659,11 +23924,11 @@
 
 
 /***/ },
-/* 225 */
+/* 235 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var utils = __webpack_require__(217)
-	var types = __webpack_require__(218)
+	var utils = __webpack_require__(227)
+	var types = __webpack_require__(228)
 	
 	var validateOutput = function (action, path, arg, signalName) {
 	  if ((!action.options.output && !action.options.outputs) || Array.isArray(action.options.outputs)) {
@@ -22771,10 +24036,10 @@
 
 
 /***/ },
-/* 226 */
+/* 236 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var utils = __webpack_require__(217)
+	var utils = __webpack_require__(227)
 	
 	module.exports = function (controller, model, allModules) {
 	  var initialState = {}
@@ -22875,7 +24140,7 @@
 
 
 /***/ },
-/* 227 */
+/* 237 */
 /***/ function(module, exports) {
 
 	module.exports = function (model) {
@@ -22970,7 +24235,7 @@
 
 
 /***/ },
-/* 228 */
+/* 238 */
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -23274,10 +24539,10 @@
 
 
 /***/ },
-/* 229 */
+/* 239 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Baobab = __webpack_require__(230);
+	var Baobab = __webpack_require__(240);
 	function deepmerge(target, src) {
 	   var array = Array.isArray(src);
 	   var dst = array && [] || {};
@@ -23437,7 +24702,7 @@
 
 
 /***/ },
-/* 230 */
+/* 240 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -23464,29 +24729,29 @@
 	
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 	
-	var _emmett = __webpack_require__(231);
+	var _emmett = __webpack_require__(241);
 	
 	var _emmett2 = _interopRequireDefault(_emmett);
 	
-	var _cursor = __webpack_require__(232);
+	var _cursor = __webpack_require__(242);
 	
 	var _cursor2 = _interopRequireDefault(_cursor);
 	
-	var _monkey = __webpack_require__(233);
+	var _monkey = __webpack_require__(243);
 	
-	var _watcher = __webpack_require__(237);
+	var _watcher = __webpack_require__(247);
 	
 	var _watcher2 = _interopRequireDefault(_watcher);
 	
-	var _type = __webpack_require__(234);
+	var _type = __webpack_require__(244);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _update2 = __webpack_require__(235);
+	var _update2 = __webpack_require__(245);
 	
 	var _update3 = _interopRequireDefault(_update2);
 	
-	var _helpers = __webpack_require__(236);
+	var _helpers = __webpack_require__(246);
 	
 	var helpers = _interopRequireWildcard(_helpers);
 	
@@ -24046,7 +25311,7 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 231 */
+/* 241 */
 /***/ function(module, exports, __webpack_require__) {
 
 	(function() {
@@ -24605,7 +25870,7 @@
 
 
 /***/ },
-/* 232 */
+/* 242 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -24630,17 +25895,17 @@
 	
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 	
-	var _emmett = __webpack_require__(231);
+	var _emmett = __webpack_require__(241);
 	
 	var _emmett2 = _interopRequireDefault(_emmett);
 	
-	var _monkey = __webpack_require__(233);
+	var _monkey = __webpack_require__(243);
 	
-	var _type = __webpack_require__(234);
+	var _type = __webpack_require__(244);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _helpers = __webpack_require__(236);
+	var _helpers = __webpack_require__(246);
 	
 	/**
 	 * Traversal helper function for dynamic cursors. Will throw a legible error
@@ -25495,7 +26760,7 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 233 */
+/* 243 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -25516,15 +26781,15 @@
 	
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 	
-	var _type = __webpack_require__(234);
+	var _type = __webpack_require__(244);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _update2 = __webpack_require__(235);
+	var _update2 = __webpack_require__(245);
 	
 	var _update3 = _interopRequireDefault(_update2);
 	
-	var _helpers = __webpack_require__(236);
+	var _helpers = __webpack_require__(246);
 	
 	/**
 	 * Monkey Definition class
@@ -25790,7 +27055,7 @@
 	exports.Monkey = Monkey;
 
 /***/ },
-/* 234 */
+/* 244 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -25807,7 +27072,7 @@
 	  value: true
 	});
 	
-	var _monkey = __webpack_require__(233);
+	var _monkey = __webpack_require__(243);
 	
 	var type = {};
 	
@@ -26045,7 +27310,7 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 235 */
+/* 245 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -26065,11 +27330,11 @@
 	
 	function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i]; return arr2; } else { return Array.from(arr); } }
 	
-	var _type = __webpack_require__(234);
+	var _type = __webpack_require__(244);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _helpers = __webpack_require__(236);
+	var _helpers = __webpack_require__(246);
 	
 	function err(operation, expectedTarget, path) {
 	  return (0, _helpers.makeError)('Baobab.update: cannot apply the "' + operation + '" on ' + ('a non ' + expectedTarget + ' (path: /' + path.join('/') + ').'), { path: path });
@@ -26282,7 +27547,7 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 236 */
+/* 246 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/* eslint eqeqeq: 0 */
@@ -26314,9 +27579,9 @@
 	
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 	
-	var _monkey = __webpack_require__(233);
+	var _monkey = __webpack_require__(243);
 	
-	var _type = __webpack_require__(234);
+	var _type = __webpack_require__(244);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
@@ -26902,7 +28167,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 237 */
+/* 247 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -26928,19 +28193,19 @@
 	
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 	
-	var _emmett = __webpack_require__(231);
+	var _emmett = __webpack_require__(241);
 	
 	var _emmett2 = _interopRequireDefault(_emmett);
 	
-	var _cursor = __webpack_require__(232);
+	var _cursor = __webpack_require__(242);
 	
 	var _cursor2 = _interopRequireDefault(_cursor);
 	
-	var _type = __webpack_require__(234);
+	var _type = __webpack_require__(244);
 	
 	var _type2 = _interopRequireDefault(_type);
 	
-	var _helpers = __webpack_require__(236);
+	var _helpers = __webpack_require__(246);
 	
 	/**
 	 * Watcher class.
@@ -27085,10 +28350,10 @@
 	module.exports = exports['default'];
 
 /***/ },
-/* 238 */
+/* 248 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var axios = __webpack_require__(239);
+	var axios = __webpack_require__(249);
 	
 	var configIndex = {
 	  get: 1,
@@ -27157,25 +28422,25 @@
 
 
 /***/ },
-/* 239 */
+/* 249 */
 /***/ function(module, exports, __webpack_require__) {
 
-	module.exports = __webpack_require__(240);
+	module.exports = __webpack_require__(250);
 
 /***/ },
-/* 240 */
+/* 250 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var defaults = __webpack_require__(241);
-	var utils = __webpack_require__(242);
-	var dispatchRequest = __webpack_require__(243);
-	var InterceptorManager = __webpack_require__(251);
-	var isAbsoluteURL = __webpack_require__(252);
-	var combineURLs = __webpack_require__(253);
-	var bind = __webpack_require__(254);
-	var transformData = __webpack_require__(247);
+	var defaults = __webpack_require__(251);
+	var utils = __webpack_require__(252);
+	var dispatchRequest = __webpack_require__(253);
+	var InterceptorManager = __webpack_require__(261);
+	var isAbsoluteURL = __webpack_require__(262);
+	var combineURLs = __webpack_require__(263);
+	var bind = __webpack_require__(264);
+	var transformData = __webpack_require__(257);
 	
 	function Axios(defaultConfig) {
 	  this.defaults = utils.merge({}, defaultConfig);
@@ -27258,7 +28523,7 @@
 	axios.all = function all(promises) {
 	  return Promise.all(promises);
 	};
-	axios.spread = __webpack_require__(255);
+	axios.spread = __webpack_require__(265);
 	
 	// Expose interceptors
 	axios.interceptors = defaultInstance.interceptors;
@@ -27289,12 +28554,12 @@
 
 
 /***/ },
-/* 241 */
+/* 251 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(242);
+	var utils = __webpack_require__(252);
 	
 	var PROTECTION_PREFIX = /^\)\]\}',?\n/;
 	var DEFAULT_CONTENT_TYPE = {
@@ -27358,7 +28623,7 @@
 
 
 /***/ },
-/* 242 */
+/* 252 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -27608,7 +28873,7 @@
 
 
 /***/ },
-/* 243 */
+/* 253 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(process) {'use strict';
@@ -27630,10 +28895,10 @@
 	        adapter = config.adapter;
 	      } else if (typeof XMLHttpRequest !== 'undefined') {
 	        // For browsers use XHR adapter
-	        adapter = __webpack_require__(244);
+	        adapter = __webpack_require__(254);
 	      } else if (typeof process !== 'undefined') {
 	        // For node use HTTP adapter
-	        adapter = __webpack_require__(244);
+	        adapter = __webpack_require__(254);
 	      }
 	
 	      if (typeof adapter === 'function') {
@@ -27649,17 +28914,17 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(12)))
 
 /***/ },
-/* 244 */
+/* 254 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(242);
-	var buildURL = __webpack_require__(245);
-	var parseHeaders = __webpack_require__(246);
-	var transformData = __webpack_require__(247);
-	var isURLSameOrigin = __webpack_require__(248);
-	var btoa = window.btoa || __webpack_require__(249);
+	var utils = __webpack_require__(252);
+	var buildURL = __webpack_require__(255);
+	var parseHeaders = __webpack_require__(256);
+	var transformData = __webpack_require__(257);
+	var isURLSameOrigin = __webpack_require__(258);
+	var btoa = window.btoa || __webpack_require__(259);
 	
 	module.exports = function xhrAdapter(resolve, reject, config) {
 	  var requestData = config.data;
@@ -27734,7 +28999,7 @@
 	  // This is only done if running in a standard browser environment.
 	  // Specifically not if we're in a web worker, or react-native.
 	  if (utils.isStandardBrowserEnv()) {
-	    var cookies = __webpack_require__(250);
+	    var cookies = __webpack_require__(260);
 	
 	    // Add xsrf header
 	    var xsrfValue = config.withCredentials || isURLSameOrigin(config.url) ?
@@ -27785,12 +29050,12 @@
 
 
 /***/ },
-/* 245 */
+/* 255 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(242);
+	var utils = __webpack_require__(252);
 	
 	function encode(val) {
 	  return encodeURIComponent(val).
@@ -27858,12 +29123,12 @@
 
 
 /***/ },
-/* 246 */
+/* 256 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(242);
+	var utils = __webpack_require__(252);
 	
 	/**
 	 * Parse headers into an object
@@ -27901,12 +29166,12 @@
 
 
 /***/ },
-/* 247 */
+/* 257 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(242);
+	var utils = __webpack_require__(252);
 	
 	/**
 	 * Transform the data for a request or a response
@@ -27927,12 +29192,12 @@
 
 
 /***/ },
-/* 248 */
+/* 258 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(242);
+	var utils = __webpack_require__(252);
 	
 	module.exports = (
 	  utils.isStandardBrowserEnv() ?
@@ -28001,7 +29266,7 @@
 
 
 /***/ },
-/* 249 */
+/* 259 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28043,12 +29308,12 @@
 
 
 /***/ },
-/* 250 */
+/* 260 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(242);
+	var utils = __webpack_require__(252);
 	
 	module.exports = (
 	  utils.isStandardBrowserEnv() ?
@@ -28102,12 +29367,12 @@
 
 
 /***/ },
-/* 251 */
+/* 261 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var utils = __webpack_require__(242);
+	var utils = __webpack_require__(252);
 	
 	function InterceptorManager() {
 	  this.handlers = [];
@@ -28160,7 +29425,7 @@
 
 
 /***/ },
-/* 252 */
+/* 262 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28180,7 +29445,7 @@
 
 
 /***/ },
-/* 253 */
+/* 263 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28198,7 +29463,7 @@
 
 
 /***/ },
-/* 254 */
+/* 264 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28215,7 +29480,7 @@
 
 
 /***/ },
-/* 255 */
+/* 265 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -28248,4001 +29513,17 @@
 
 
 /***/ },
-/* 256 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var mixin = __webpack_require__(257)
-	var decorator = __webpack_require__(258)
-	var hoc = __webpack_require__(259)
-	var container = __webpack_require__(260)
-	var component = __webpack_require__(261)
-	var link = __webpack_require__(262)
-	
-	module.exports = {
-	  Mixin: mixin,
-	  Decorator: decorator,
-	  HOC: hoc,
-	  Container: container,
-	  Component: component,
-	  Link: link
-	}
-
-
-/***/ },
-/* 257 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var React = __webpack_require__(10)
-	var callbacks = []
-	var currentController = null
-	
-	var currentUpdateLoopId = 0
-	
-	module.exports = {
-	  contextTypes: {
-	    controller: React.PropTypes.object
-	  },
-	  componentWillMount: function () {
-	    this.signals = this.context.controller.isServer ? {} : this.context.controller.getSignals()
-	    this.modules = this.context.controller.isServer ? {} : this.context.controller.getModules()
-	
-	    var statePaths = this.getStatePaths ? this.getStatePaths(this.props) : {}
-	    if (!Object.keys(statePaths).length) {
-	      return
-	    }
-	
-	    if (this.context.controller.isServer) {
-	      return this._update()
-	    }
-	
-	    if (currentController !== this.context.controller) {
-	      if (currentController) {
-	        currentController.removeListener('change', this.listener)
-	      }
-	      currentController = this.context.controller
-	      this.context.controller.on('change', this.listener)
-	    }
-	    callbacks.push(this._update)
-	    this._update()
-	  },
-	  listener: function () {
-	    var runningLoopId = ++currentUpdateLoopId
-	    var scopedRun = function (runningLoopId) {
-	      var nextCallbackIndex = -1
-	      var runNextCallback = function () {
-	        if (currentUpdateLoopId !== runningLoopId) {
-	          return
-	        }
-	        nextCallbackIndex++
-	        if (!callbacks[nextCallbackIndex]) {
-	          return
-	        }
-	        callbacks[nextCallbackIndex](runNextCallback)
-	      }
-	      runNextCallback()
-	    }
-	    scopedRun(runningLoopId)
-	  },
-	  componentWillUnmount: function () {
-	    this._isUmounting = true
-	
-	    var statePaths = this.getStatePaths ? this.getStatePaths(this.props) : {}
-	    if (Object.keys(statePaths).length) {
-	      callbacks.splice(callbacks.indexOf(this._update), 1)
-	    }
-	  },
-	  shouldComponentUpdate: function (nextProps, nextState) {
-	    var propKeys = Object.keys(nextProps || {})
-	    var stateKeys = Object.keys(nextState || {})
-	
-	    // props
-	    for (var i = 0; i < propKeys.length; i++) {
-	      if (this.props[propKeys[i]] !== nextProps[propKeys[i]]) {
-	        return true
-	      }
-	    }
-	
-	    // State
-	    for (var j = 0; j < stateKeys.length; j++) {
-	      if (this.state[stateKeys[j]] !== nextState[stateKeys[j]]) {
-	        return true
-	      }
-	    }
-	    return false
-	  },
-	  getProps: function () {
-	    var state = this.state || {}
-	    var props = this.props || {}
-	
-	    var propsToPass = Object.keys(state).reduce(function (props, key) {
-	      props[key] = state[key]
-	      return props
-	    }, {})
-	
-	    propsToPass = Object.keys(props).reduce(function (propsToPass, key) {
-	      propsToPass[key] = props[key]
-	      return propsToPass
-	    }, propsToPass)
-	
-	    propsToPass.signals = this.signals
-	    propsToPass.modules = this.modules
-	
-	    return propsToPass
-	  },
-	  _update: function (nextUpdate, props) {
-	    if (this._isUmounting || this._lastUpdateLoopId === currentUpdateLoopId) {
-	      return
-	    }
-	
-	    var statePaths = this.getStatePaths ? this.getStatePaths(props || this.props) : {}
-	    var controller = this.context.controller
-	    var newState = {}
-	
-	    newState = Object.keys(statePaths).reduce(function (newState, key) {
-	      var value = controller.get(typeof statePaths[key] === 'string' ? statePaths[key].split('.') : statePaths[key])
-	      newState[key] = value
-	      return newState
-	    }, newState)
-	
-	    if (nextUpdate) {
-	      this._lastUpdateLoopId = currentUpdateLoopId
-	      this.setState(newState)
-	      nextUpdate()
-	    } else {
-	      this.setState(newState)
-	    }
-	  }
-	}
-
-
-/***/ },
-/* 258 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Hoc = __webpack_require__(259)
-	
-	module.exports = function (paths) {
-	  return function (Component) {
-	    return Hoc(Component, paths)
-	  }
-	}
-
-
-/***/ },
-/* 259 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var React = __webpack_require__(10)
-	var mixin = __webpack_require__(257)
-	
-	module.exports = function (Component, paths) {
-	  return React.createClass({
-	    displayName: Component.name + 'Container',
-	    mixins: [mixin],
-	    componentWillReceiveProps: function (nextProps) {
-	      this._update(null, nextProps)
-	    },
-	    getStatePaths: function (props) {
-	      if (!paths) {
-	        return {}
-	      }
-	      var propsWithModules = Object.keys(props).reduce(function (propsWithModules, key) {
-	        propsWithModules[key] = props[key]
-	        return propsWithModules
-	      }, {modules: this.modules})
-	      return typeof paths === 'function' ? paths(propsWithModules) : paths
-	    },
-	    render: function () {
-	      return React.createElement(Component, this.getProps())
-	    }
-	  })
-	}
-
-
-/***/ },
-/* 260 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var React = __webpack_require__(10)
-	
-	module.exports = React.createClass({
-	  displayName: 'CerebralContainer',
-	  childContextTypes: {
-	    controller: React.PropTypes.object.isRequired
-	  },
-	  propTypes: {
-	    app: React.PropTypes.func,
-	    controller: React.PropTypes.object.isRequired
-	  },
-	  getChildContext: function () {
-	    return {
-	      controller: this.props.controller
-	    }
-	  },
-	  render: function () {
-	    return this.props.app ? React.createElement(this.props.app) : React.DOM.div(this.props)
-	  }
-	})
-
-
-/***/ },
-/* 261 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var React = __webpack_require__(10)
-	var Hoc = __webpack_require__(259)
-	
-	module.exports = function () {
-	  var paths
-	  var componentDefinition
-	  var Component = null
-	
-	  if (arguments.length === 2) {
-	    paths = arguments[0]
-	    componentDefinition = arguments[1]
-	  } else {
-	    paths = {}
-	    componentDefinition = arguments[0]
-	  }
-	
-	  if (typeof componentDefinition === 'function') {
-	    Component = componentDefinition
-	  } else {
-	    Component = React.createClass(componentDefinition)
-	  }
-	
-	  return Hoc(Component, paths)
-	}
-
-
-/***/ },
-/* 262 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var React = __webpack_require__(10)
-	var get = __webpack_require__(263)
-	
-	module.exports = React.createClass({
-	  contextTypes: {
-	    controller: React.PropTypes.object
-	  },
-	
-	  propTypes: {
-	    children: React.PropTypes.node,
-	    params: React.PropTypes.object,
-	    signal: React.PropTypes.oneOfType([
-	      React.PropTypes.func,
-	      React.PropTypes.string
-	    ]).isRequired
-	  },
-	
-	  componentWillMount: function () {
-	  },
-	
-	  onClick: function (e) {
-	    e.preventDefault()
-	    this.signal(this.props.params)
-	  },
-	
-	  render: function () {
-	    var controller = this.context.controller
-	    var router
-	    var signal
-	    var signalName
-	
-	    if (typeof this.props.signal === 'function') {
-	      signal = this.signal = this.props.signal
-	      signalName = signal.signalName
-	    } else {
-	      signalName = this.props.signal
-	      signal = this.signal = get(controller.getSignals(), signalName)
-	    }
-	
-	    var routerMeta = controller.getModules()['cerebral-module-router']
-	    if (routerMeta) {
-	      router = get(controller.getServices(), routerMeta.name)
-	    }
-	
-	    if (typeof signal !== 'function') {
-	      throw new Error('Cerebral React - You have to pass a signal or signal name to the Link component')
-	    }
-	
-	    var passedProps = this.props
-	    var props = Object.keys(passedProps).reduce(function (props, key) {
-	      props[key] = passedProps[key]
-	      return props
-	    }, {})
-	
-	    if (router && typeof router.getSignalUrl === 'function') {
-	      props.href = router.getSignalUrl(signalName, this.props.params) || undefined
-	    } else if (typeof signal.getUrl === 'function') {
-	      props.href = signal.getUrl(this.props.params || {})
-	    }
-	    if (!props.href) {
-	      props.onClick = this.onClick
-	    }
-	
-	    return React.DOM.a(props, this.props.children)
-	  }
-	})
-
-
-/***/ },
-/* 263 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/**
-	 * lodash 4.2.1 (Custom Build) <https://lodash.com/>
-	 * Build: `lodash modularize exports="npm" -o ./`
-	 * Copyright jQuery Foundation and other contributors <https://jquery.org/>
-	 * Released under MIT license <https://lodash.com/license>
-	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
-	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
-	 */
-	var stringToPath = __webpack_require__(264);
-	
-	/** `Object#toString` result references. */
-	var symbolTag = '[object Symbol]';
-	
-	/** Used to match property names within property paths. */
-	var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/,
-	    reIsPlainProp = /^\w*$/;
-	
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-	
-	/**
-	 * Used to resolve the
-	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
-	 * of values.
-	 */
-	var objectToString = objectProto.toString;
-	
-	/**
-	 * The base implementation of `_.get` without support for default values.
-	 *
-	 * @private
-	 * @param {Object} object The object to query.
-	 * @param {Array|string} path The path of the property to get.
-	 * @returns {*} Returns the resolved value.
-	 */
-	function baseGet(object, path) {
-	  path = isKey(path, object) ? [path] : castPath(path);
-	
-	  var index = 0,
-	      length = path.length;
-	
-	  while (object != null && index < length) {
-	    object = object[path[index++]];
-	  }
-	  return (index && index == length) ? object : undefined;
-	}
-	
-	/**
-	 * Casts `value` to a path array if it's not one.
-	 *
-	 * @private
-	 * @param {*} value The value to inspect.
-	 * @returns {Array} Returns the cast property path array.
-	 */
-	function castPath(value) {
-	  return isArray(value) ? value : stringToPath(value);
-	}
-	
-	/**
-	 * Checks if `value` is a property name and not a property path.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @param {Object} [object] The object to query keys on.
-	 * @returns {boolean} Returns `true` if `value` is a property name, else `false`.
-	 */
-	function isKey(value, object) {
-	  var type = typeof value;
-	  if (type == 'number' || type == 'symbol') {
-	    return true;
-	  }
-	  return !isArray(value) &&
-	    (isSymbol(value) || reIsPlainProp.test(value) || !reIsDeepProp.test(value) ||
-	      (object != null && value in Object(object)));
-	}
-	
-	/**
-	 * Checks if `value` is classified as an `Array` object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @type {Function}
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isArray([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isArray(document.body.children);
-	 * // => false
-	 *
-	 * _.isArray('abc');
-	 * // => false
-	 *
-	 * _.isArray(_.noop);
-	 * // => false
-	 */
-	var isArray = Array.isArray;
-	
-	/**
-	 * Checks if `value` is object-like. A value is object-like if it's not `null`
-	 * and has a `typeof` result of "object".
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
-	 * @example
-	 *
-	 * _.isObjectLike({});
-	 * // => true
-	 *
-	 * _.isObjectLike([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObjectLike(_.noop);
-	 * // => false
-	 *
-	 * _.isObjectLike(null);
-	 * // => false
-	 */
-	function isObjectLike(value) {
-	  return !!value && typeof value == 'object';
-	}
-	
-	/**
-	 * Checks if `value` is classified as a `Symbol` primitive or object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isSymbol(Symbol.iterator);
-	 * // => true
-	 *
-	 * _.isSymbol('abc');
-	 * // => false
-	 */
-	function isSymbol(value) {
-	  return typeof value == 'symbol' ||
-	    (isObjectLike(value) && objectToString.call(value) == symbolTag);
-	}
-	
-	/**
-	 * Gets the value at `path` of `object`. If the resolved value is
-	 * `undefined`, the `defaultValue` is used in its place.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 3.7.0
-	 * @category Object
-	 * @param {Object} object The object to query.
-	 * @param {Array|string} path The path of the property to get.
-	 * @param {*} [defaultValue] The value returned for `undefined` resolved values.
-	 * @returns {*} Returns the resolved value.
-	 * @example
-	 *
-	 * var object = { 'a': [{ 'b': { 'c': 3 } }] };
-	 *
-	 * _.get(object, 'a[0].b.c');
-	 * // => 3
-	 *
-	 * _.get(object, ['a', '0', 'b', 'c']);
-	 * // => 3
-	 *
-	 * _.get(object, 'a.b.c', 'default');
-	 * // => 'default'
-	 */
-	function get(object, path, defaultValue) {
-	  var result = object == null ? undefined : baseGet(object, path);
-	  return result === undefined ? defaultValue : result;
-	}
-	
-	module.exports = get;
-
-
-/***/ },
-/* 264 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/* WEBPACK VAR INJECTION */(function(module, global) {/**
-	 * lodash 4.7.1 (Custom Build) <https://lodash.com/>
-	 * Build: `lodash modularize exports="npm" -o ./`
-	 * Copyright jQuery Foundation and other contributors <https://jquery.org/>
-	 * Released under MIT license <https://lodash.com/license>
-	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
-	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
-	 */
-	
-	/** Used as the `TypeError` message for "Functions" methods. */
-	var FUNC_ERROR_TEXT = 'Expected a function';
-	
-	/** Used to stand-in for `undefined` hash values. */
-	var HASH_UNDEFINED = '__lodash_hash_undefined__';
-	
-	/** Used as references for various `Number` constants. */
-	var INFINITY = 1 / 0;
-	
-	/** `Object#toString` result references. */
-	var funcTag = '[object Function]',
-	    genTag = '[object GeneratorFunction]',
-	    symbolTag = '[object Symbol]';
-	
-	/** Used to match property names within property paths. */
-	var rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]/g;
-	
-	/**
-	 * Used to match `RegExp`
-	 * [syntax characters](http://ecma-international.org/ecma-262/6.0/#sec-patterns).
-	 */
-	var reRegExpChar = /[\\^$.*+?()[\]{}|]/g;
-	
-	/** Used to match backslashes in property paths. */
-	var reEscapeChar = /\\(\\)?/g;
-	
-	/** Used to detect host constructors (Safari). */
-	var reIsHostCtor = /^\[object .+?Constructor\]$/;
-	
-	/** Used to determine if values are of the language type `Object`. */
-	var objectTypes = {
-	  'function': true,
-	  'object': true
-	};
-	
-	/** Detect free variable `exports`. */
-	var freeExports = (objectTypes[typeof exports] && exports && !exports.nodeType)
-	  ? exports
-	  : undefined;
-	
-	/** Detect free variable `module`. */
-	var freeModule = (objectTypes[typeof module] && module && !module.nodeType)
-	  ? module
-	  : undefined;
-	
-	/** Detect free variable `global` from Node.js. */
-	var freeGlobal = checkGlobal(freeExports && freeModule && typeof global == 'object' && global);
-	
-	/** Detect free variable `self`. */
-	var freeSelf = checkGlobal(objectTypes[typeof self] && self);
-	
-	/** Detect free variable `window`. */
-	var freeWindow = checkGlobal(objectTypes[typeof window] && window);
-	
-	/** Detect `this` as the global object. */
-	var thisGlobal = checkGlobal(objectTypes[typeof this] && this);
-	
-	/**
-	 * Used as a reference to the global object.
-	 *
-	 * The `this` value is used if it's the global object to avoid Greasemonkey's
-	 * restricted `window` object, otherwise the `window` object is used.
-	 */
-	var root = freeGlobal ||
-	  ((freeWindow !== (thisGlobal && thisGlobal.window)) && freeWindow) ||
-	    freeSelf || thisGlobal || Function('return this')();
-	
-	/**
-	 * Checks if `value` is a global object.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {null|Object} Returns `value` if it's a global object, else `null`.
-	 */
-	function checkGlobal(value) {
-	  return (value && value.Object === Object) ? value : null;
-	}
-	
-	/**
-	 * Checks if `value` is a host object in IE < 9.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is a host object, else `false`.
-	 */
-	function isHostObject(value) {
-	  // Many host objects are `Object` objects that can coerce to strings
-	  // despite having improperly defined `toString` methods.
-	  var result = false;
-	  if (value != null && typeof value.toString != 'function') {
-	    try {
-	      result = !!(value + '');
-	    } catch (e) {}
-	  }
-	  return result;
-	}
-	
-	/** Used for built-in method references. */
-	var arrayProto = Array.prototype,
-	    objectProto = Object.prototype;
-	
-	/** Used to resolve the decompiled source of functions. */
-	var funcToString = Function.prototype.toString;
-	
-	/** Used to check objects for own properties. */
-	var hasOwnProperty = objectProto.hasOwnProperty;
-	
-	/**
-	 * Used to resolve the
-	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
-	 * of values.
-	 */
-	var objectToString = objectProto.toString;
-	
-	/** Used to detect if a method is native. */
-	var reIsNative = RegExp('^' +
-	  funcToString.call(hasOwnProperty).replace(reRegExpChar, '\\$&')
-	  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
-	);
-	
-	/** Built-in value references. */
-	var Symbol = root.Symbol,
-	    splice = arrayProto.splice;
-	
-	/* Built-in method references that are verified to be native. */
-	var Map = getNative(root, 'Map'),
-	    nativeCreate = getNative(Object, 'create');
-	
-	/** Used to convert symbols to primitives and strings. */
-	var symbolProto = Symbol ? Symbol.prototype : undefined,
-	    symbolToString = symbolProto ? symbolProto.toString : undefined;
-	
-	/**
-	 * Creates a hash object.
-	 *
-	 * @private
-	 * @constructor
-	 * @returns {Object} Returns the new hash object.
-	 */
-	function Hash() {}
-	
-	/**
-	 * Removes `key` and its value from the hash.
-	 *
-	 * @private
-	 * @param {Object} hash The hash to modify.
-	 * @param {string} key The key of the value to remove.
-	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
-	 */
-	function hashDelete(hash, key) {
-	  return hashHas(hash, key) && delete hash[key];
-	}
-	
-	/**
-	 * Gets the hash value for `key`.
-	 *
-	 * @private
-	 * @param {Object} hash The hash to query.
-	 * @param {string} key The key of the value to get.
-	 * @returns {*} Returns the entry value.
-	 */
-	function hashGet(hash, key) {
-	  if (nativeCreate) {
-	    var result = hash[key];
-	    return result === HASH_UNDEFINED ? undefined : result;
-	  }
-	  return hasOwnProperty.call(hash, key) ? hash[key] : undefined;
-	}
-	
-	/**
-	 * Checks if a hash value for `key` exists.
-	 *
-	 * @private
-	 * @param {Object} hash The hash to query.
-	 * @param {string} key The key of the entry to check.
-	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
-	 */
-	function hashHas(hash, key) {
-	  return nativeCreate ? hash[key] !== undefined : hasOwnProperty.call(hash, key);
-	}
-	
-	/**
-	 * Sets the hash `key` to `value`.
-	 *
-	 * @private
-	 * @param {Object} hash The hash to modify.
-	 * @param {string} key The key of the value to set.
-	 * @param {*} value The value to set.
-	 */
-	function hashSet(hash, key, value) {
-	  hash[key] = (nativeCreate && value === undefined) ? HASH_UNDEFINED : value;
-	}
-	
-	// Avoid inheriting from `Object.prototype` when possible.
-	Hash.prototype = nativeCreate ? nativeCreate(null) : objectProto;
-	
-	/**
-	 * Creates a map cache object to store key-value pairs.
-	 *
-	 * @private
-	 * @constructor
-	 * @param {Array} [values] The values to cache.
-	 */
-	function MapCache(values) {
-	  var index = -1,
-	      length = values ? values.length : 0;
-	
-	  this.clear();
-	  while (++index < length) {
-	    var entry = values[index];
-	    this.set(entry[0], entry[1]);
-	  }
-	}
-	
-	/**
-	 * Removes all key-value entries from the map.
-	 *
-	 * @private
-	 * @name clear
-	 * @memberOf MapCache
-	 */
-	function mapClear() {
-	  this.__data__ = {
-	    'hash': new Hash,
-	    'map': Map ? new Map : [],
-	    'string': new Hash
-	  };
-	}
-	
-	/**
-	 * Removes `key` and its value from the map.
-	 *
-	 * @private
-	 * @name delete
-	 * @memberOf MapCache
-	 * @param {string} key The key of the value to remove.
-	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
-	 */
-	function mapDelete(key) {
-	  var data = this.__data__;
-	  if (isKeyable(key)) {
-	    return hashDelete(typeof key == 'string' ? data.string : data.hash, key);
-	  }
-	  return Map ? data.map['delete'](key) : assocDelete(data.map, key);
-	}
-	
-	/**
-	 * Gets the map value for `key`.
-	 *
-	 * @private
-	 * @name get
-	 * @memberOf MapCache
-	 * @param {string} key The key of the value to get.
-	 * @returns {*} Returns the entry value.
-	 */
-	function mapGet(key) {
-	  var data = this.__data__;
-	  if (isKeyable(key)) {
-	    return hashGet(typeof key == 'string' ? data.string : data.hash, key);
-	  }
-	  return Map ? data.map.get(key) : assocGet(data.map, key);
-	}
-	
-	/**
-	 * Checks if a map value for `key` exists.
-	 *
-	 * @private
-	 * @name has
-	 * @memberOf MapCache
-	 * @param {string} key The key of the entry to check.
-	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
-	 */
-	function mapHas(key) {
-	  var data = this.__data__;
-	  if (isKeyable(key)) {
-	    return hashHas(typeof key == 'string' ? data.string : data.hash, key);
-	  }
-	  return Map ? data.map.has(key) : assocHas(data.map, key);
-	}
-	
-	/**
-	 * Sets the map `key` to `value`.
-	 *
-	 * @private
-	 * @name set
-	 * @memberOf MapCache
-	 * @param {string} key The key of the value to set.
-	 * @param {*} value The value to set.
-	 * @returns {Object} Returns the map cache instance.
-	 */
-	function mapSet(key, value) {
-	  var data = this.__data__;
-	  if (isKeyable(key)) {
-	    hashSet(typeof key == 'string' ? data.string : data.hash, key, value);
-	  } else if (Map) {
-	    data.map.set(key, value);
-	  } else {
-	    assocSet(data.map, key, value);
-	  }
-	  return this;
-	}
-	
-	// Add methods to `MapCache`.
-	MapCache.prototype.clear = mapClear;
-	MapCache.prototype['delete'] = mapDelete;
-	MapCache.prototype.get = mapGet;
-	MapCache.prototype.has = mapHas;
-	MapCache.prototype.set = mapSet;
-	
-	/**
-	 * Removes `key` and its value from the associative array.
-	 *
-	 * @private
-	 * @param {Array} array The array to modify.
-	 * @param {string} key The key of the value to remove.
-	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
-	 */
-	function assocDelete(array, key) {
-	  var index = assocIndexOf(array, key);
-	  if (index < 0) {
-	    return false;
-	  }
-	  var lastIndex = array.length - 1;
-	  if (index == lastIndex) {
-	    array.pop();
-	  } else {
-	    splice.call(array, index, 1);
-	  }
-	  return true;
-	}
-	
-	/**
-	 * Gets the associative array value for `key`.
-	 *
-	 * @private
-	 * @param {Array} array The array to query.
-	 * @param {string} key The key of the value to get.
-	 * @returns {*} Returns the entry value.
-	 */
-	function assocGet(array, key) {
-	  var index = assocIndexOf(array, key);
-	  return index < 0 ? undefined : array[index][1];
-	}
-	
-	/**
-	 * Checks if an associative array value for `key` exists.
-	 *
-	 * @private
-	 * @param {Array} array The array to query.
-	 * @param {string} key The key of the entry to check.
-	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
-	 */
-	function assocHas(array, key) {
-	  return assocIndexOf(array, key) > -1;
-	}
-	
-	/**
-	 * Gets the index at which the `key` is found in `array` of key-value pairs.
-	 *
-	 * @private
-	 * @param {Array} array The array to search.
-	 * @param {*} key The key to search for.
-	 * @returns {number} Returns the index of the matched value, else `-1`.
-	 */
-	function assocIndexOf(array, key) {
-	  var length = array.length;
-	  while (length--) {
-	    if (eq(array[length][0], key)) {
-	      return length;
-	    }
-	  }
-	  return -1;
-	}
-	
-	/**
-	 * Sets the associative array `key` to `value`.
-	 *
-	 * @private
-	 * @param {Array} array The array to modify.
-	 * @param {string} key The key of the value to set.
-	 * @param {*} value The value to set.
-	 */
-	function assocSet(array, key, value) {
-	  var index = assocIndexOf(array, key);
-	  if (index < 0) {
-	    array.push([key, value]);
-	  } else {
-	    array[index][1] = value;
-	  }
-	}
-	
-	/**
-	 * Gets the native function at `key` of `object`.
-	 *
-	 * @private
-	 * @param {Object} object The object to query.
-	 * @param {string} key The key of the method to get.
-	 * @returns {*} Returns the function if it's native, else `undefined`.
-	 */
-	function getNative(object, key) {
-	  var value = object[key];
-	  return isNative(value) ? value : undefined;
-	}
-	
-	/**
-	 * Checks if `value` is suitable for use as unique object key.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is suitable, else `false`.
-	 */
-	function isKeyable(value) {
-	  var type = typeof value;
-	  return type == 'number' || type == 'boolean' ||
-	    (type == 'string' && value != '__proto__') || value == null;
-	}
-	
-	/**
-	 * Converts `string` to a property path array.
-	 *
-	 * @private
-	 * @param {string} string The string to convert.
-	 * @returns {Array} Returns the property path array.
-	 */
-	var stringToPath = memoize(function(string) {
-	  var result = [];
-	  toString(string).replace(rePropName, function(match, number, quote, string) {
-	    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
-	  });
-	  return result;
-	});
-	
-	/**
-	 * Converts `func` to its source code.
-	 *
-	 * @private
-	 * @param {Function} func The function to process.
-	 * @returns {string} Returns the source code.
-	 */
-	function toSource(func) {
-	  if (func != null) {
-	    try {
-	      return funcToString.call(func);
-	    } catch (e) {}
-	    try {
-	      return (func + '');
-	    } catch (e) {}
-	  }
-	  return '';
-	}
-	
-	/**
-	 * Creates a function that memoizes the result of `func`. If `resolver` is
-	 * provided, it determines the cache key for storing the result based on the
-	 * arguments provided to the memoized function. By default, the first argument
-	 * provided to the memoized function is used as the map cache key. The `func`
-	 * is invoked with the `this` binding of the memoized function.
-	 *
-	 * **Note:** The cache is exposed as the `cache` property on the memoized
-	 * function. Its creation may be customized by replacing the `_.memoize.Cache`
-	 * constructor with one whose instances implement the
-	 * [`Map`](http://ecma-international.org/ecma-262/6.0/#sec-properties-of-the-map-prototype-object)
-	 * method interface of `delete`, `get`, `has`, and `set`.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Function
-	 * @param {Function} func The function to have its output memoized.
-	 * @param {Function} [resolver] The function to resolve the cache key.
-	 * @returns {Function} Returns the new memoizing function.
-	 * @example
-	 *
-	 * var object = { 'a': 1, 'b': 2 };
-	 * var other = { 'c': 3, 'd': 4 };
-	 *
-	 * var values = _.memoize(_.values);
-	 * values(object);
-	 * // => [1, 2]
-	 *
-	 * values(other);
-	 * // => [3, 4]
-	 *
-	 * object.a = 2;
-	 * values(object);
-	 * // => [1, 2]
-	 *
-	 * // Modify the result cache.
-	 * values.cache.set(object, ['a', 'b']);
-	 * values(object);
-	 * // => ['a', 'b']
-	 *
-	 * // Replace `_.memoize.Cache`.
-	 * _.memoize.Cache = WeakMap;
-	 */
-	function memoize(func, resolver) {
-	  if (typeof func != 'function' || (resolver && typeof resolver != 'function')) {
-	    throw new TypeError(FUNC_ERROR_TEXT);
-	  }
-	  var memoized = function() {
-	    var args = arguments,
-	        key = resolver ? resolver.apply(this, args) : args[0],
-	        cache = memoized.cache;
-	
-	    if (cache.has(key)) {
-	      return cache.get(key);
-	    }
-	    var result = func.apply(this, args);
-	    memoized.cache = cache.set(key, result);
-	    return result;
-	  };
-	  memoized.cache = new (memoize.Cache || MapCache);
-	  return memoized;
-	}
-	
-	// Assign cache to `_.memoize`.
-	memoize.Cache = MapCache;
-	
-	/**
-	 * Performs a
-	 * [`SameValueZero`](http://ecma-international.org/ecma-262/6.0/#sec-samevaluezero)
-	 * comparison between two values to determine if they are equivalent.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to compare.
-	 * @param {*} other The other value to compare.
-	 * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
-	 * @example
-	 *
-	 * var object = { 'user': 'fred' };
-	 * var other = { 'user': 'fred' };
-	 *
-	 * _.eq(object, object);
-	 * // => true
-	 *
-	 * _.eq(object, other);
-	 * // => false
-	 *
-	 * _.eq('a', 'a');
-	 * // => true
-	 *
-	 * _.eq('a', Object('a'));
-	 * // => false
-	 *
-	 * _.eq(NaN, NaN);
-	 * // => true
-	 */
-	function eq(value, other) {
-	  return value === other || (value !== value && other !== other);
-	}
-	
-	/**
-	 * Checks if `value` is classified as a `Function` object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isFunction(_);
-	 * // => true
-	 *
-	 * _.isFunction(/abc/);
-	 * // => false
-	 */
-	function isFunction(value) {
-	  // The use of `Object#toString` avoids issues with the `typeof` operator
-	  // in Safari 8 which returns 'object' for typed array and weak map constructors,
-	  // and PhantomJS 1.9 which returns 'function' for `NodeList` instances.
-	  var tag = isObject(value) ? objectToString.call(value) : '';
-	  return tag == funcTag || tag == genTag;
-	}
-	
-	/**
-	 * Checks if `value` is the
-	 * [language type](http://www.ecma-international.org/ecma-262/6.0/#sec-ecmascript-language-types)
-	 * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is an object, else `false`.
-	 * @example
-	 *
-	 * _.isObject({});
-	 * // => true
-	 *
-	 * _.isObject([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObject(_.noop);
-	 * // => true
-	 *
-	 * _.isObject(null);
-	 * // => false
-	 */
-	function isObject(value) {
-	  var type = typeof value;
-	  return !!value && (type == 'object' || type == 'function');
-	}
-	
-	/**
-	 * Checks if `value` is object-like. A value is object-like if it's not `null`
-	 * and has a `typeof` result of "object".
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
-	 * @example
-	 *
-	 * _.isObjectLike({});
-	 * // => true
-	 *
-	 * _.isObjectLike([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObjectLike(_.noop);
-	 * // => false
-	 *
-	 * _.isObjectLike(null);
-	 * // => false
-	 */
-	function isObjectLike(value) {
-	  return !!value && typeof value == 'object';
-	}
-	
-	/**
-	 * Checks if `value` is a native function.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 3.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is a native function,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isNative(Array.prototype.push);
-	 * // => true
-	 *
-	 * _.isNative(_);
-	 * // => false
-	 */
-	function isNative(value) {
-	  if (!isObject(value)) {
-	    return false;
-	  }
-	  var pattern = (isFunction(value) || isHostObject(value)) ? reIsNative : reIsHostCtor;
-	  return pattern.test(toSource(value));
-	}
-	
-	/**
-	 * Checks if `value` is classified as a `Symbol` primitive or object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isSymbol(Symbol.iterator);
-	 * // => true
-	 *
-	 * _.isSymbol('abc');
-	 * // => false
-	 */
-	function isSymbol(value) {
-	  return typeof value == 'symbol' ||
-	    (isObjectLike(value) && objectToString.call(value) == symbolTag);
-	}
-	
-	/**
-	 * Converts `value` to a string if it's not one. An empty string is returned
-	 * for `null` and `undefined` values. The sign of `-0` is preserved.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to process.
-	 * @returns {string} Returns the string.
-	 * @example
-	 *
-	 * _.toString(null);
-	 * // => ''
-	 *
-	 * _.toString(-0);
-	 * // => '-0'
-	 *
-	 * _.toString([1, 2, 3]);
-	 * // => '1,2,3'
-	 */
-	function toString(value) {
-	  // Exit early for strings to avoid a performance hit in some environments.
-	  if (typeof value == 'string') {
-	    return value;
-	  }
-	  if (value == null) {
-	    return '';
-	  }
-	  if (isSymbol(value)) {
-	    return symbolToString ? symbolToString.call(value) : '';
-	  }
-	  var result = (value + '');
-	  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
-	}
-	
-	module.exports = stringToPath;
-	
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(194)(module), (function() { return this; }())))
-
-/***/ },
-/* 265 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-	
-	var _dec, _class;
-	
-	var _react = __webpack_require__(10);
-	
-	var _react2 = _interopRequireDefault(_react);
-	
-	var _cerebralViewReact = __webpack_require__(256);
-	
-	var _NewTodo = __webpack_require__(266);
-	
-	var _NewTodo2 = _interopRequireDefault(_NewTodo);
-	
-	var _List = __webpack_require__(267);
-	
-	var _List2 = _interopRequireDefault(_List);
-	
-	var _Footer = __webpack_require__(272);
-	
-	var _Footer2 = _interopRequireDefault(_Footer);
-	
-	var _visibleTodos = __webpack_require__(271);
-	
-	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-	
-	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-	
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-	
-	var App = (_dec = (0, _cerebralViewReact.Decorator)({
-	  todos: ['app', 'list', 'todos'],
-	  isLoading: ['app', 'list', 'todos', 'isLoading'],
-	  isSaving: ['app', 'new', 'isSaving'],
-	  visibleTodos: _visibleTodos2.default
-	}), _dec(_class = function (_React$Component) {
-	  _inherits(App, _React$Component);
-	
-	  function App() {
-	    _classCallCheck(this, App);
-	
-	    return _possibleConstructorReturn(this, Object.getPrototypeOf(App).apply(this, arguments));
-	  }
-	
-	  _createClass(App, [{
-	    key: 'render',
-	    value: function render() {
-	      return _react2.default.createElement(
-	        'div',
-	        { id: 'todoapp-wrapper' },
-	        _react2.default.createElement(
-	          'section',
-	          { className: 'todoapp' },
-	          _react2.default.createElement(
-	            'header',
-	            { className: 'header' },
-	            _react2.default.createElement(
-	              'h1',
-	              null,
-	              'todos'
-	            ),
-	            _react2.default.createElement(_NewTodo2.default, null)
-	          ),
-	          this.props.visibleTodos.length ? _react2.default.createElement(_List2.default, null) : null,
-	          Object.keys(this.props.todos).length ? _react2.default.createElement(_Footer2.default, null) : null
-	        ),
-	        _react2.default.createElement(
-	          'footer',
-	          { className: 'info' },
-	          _react2.default.createElement(
-	            'p',
-	            null,
-	            'Double-click to edit a todo'
-	          )
-	        )
-	      );
-	    }
-	  }]);
-	
-	  return App;
-	}(_react2.default.Component)) || _class);
-	
-	
-	module.exports = App;
-
-/***/ },
 /* 266 */
 /***/ function(module, exports, __webpack_require__) {
 
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-	
-	var _dec, _class;
-	
-	var _react = __webpack_require__(10);
-	
-	var _react2 = _interopRequireDefault(_react);
-	
-	var _cerebralViewReact = __webpack_require__(256);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-	
-	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-	
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-	
-	var NewTodo = (_dec = (0, _cerebralViewReact.Decorator)({
-	  isSaving: ['app', 'new', 'isSaving'],
-	  title: ['app', 'new', 'title']
-	}), _dec(_class = function (_React$Component) {
-	  _inherits(NewTodo, _React$Component);
-	
-	  function NewTodo() {
-	    _classCallCheck(this, NewTodo);
-	
-	    return _possibleConstructorReturn(this, Object.getPrototypeOf(NewTodo).apply(this, arguments));
-	  }
-	
-	  _createClass(NewTodo, [{
-	    key: 'onFormSubmit',
-	    value: function onFormSubmit(event) {
-	      event.preventDefault();
-	      this.props.signals.app.new.submitted();
-	    }
-	  }, {
-	    key: 'onNewTodoTitleChange',
-	    value: function onNewTodoTitleChange(event) {
-	      this.props.signals.app.new.titleChanged({
-	        title: event.target.value
-	      });
-	    }
-	  }, {
-	    key: 'render',
-	    value: function render() {
-	      var _this2 = this;
-	
-	      return _react2.default.createElement(
-	        'form',
-	        { id: 'todo-form', onSubmit: function onSubmit(e) {
-	            return _this2.onFormSubmit(e);
-	          } },
-	        _react2.default.createElement('input', {
-	          className: 'new-todo',
-	          autoComplete: 'off',
-	          placeholder: 'What needs to be done?',
-	          value: this.props.title,
-	          onChange: function onChange(e) {
-	            return _this2.onNewTodoTitleChange(e);
-	          }
-	        })
-	      );
-	    }
-	  }]);
-	
-	  return NewTodo;
-	}(_react2.default.Component)) || _class);
-	exports.default = NewTodo;
-
-/***/ },
-/* 267 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-	
-	var _dec, _class;
-	
-	var _react = __webpack_require__(10);
-	
-	var _react2 = _interopRequireDefault(_react);
-	
-	var _Todo = __webpack_require__(268);
-	
-	var _Todo2 = _interopRequireDefault(_Todo);
-	
-	var _cerebralViewReact = __webpack_require__(256);
-	
-	var _isAllChecked = __webpack_require__(270);
-	
-	var _isAllChecked2 = _interopRequireDefault(_isAllChecked);
-	
-	var _visibleTodos = __webpack_require__(271);
-	
-	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-	
-	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-	
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-	
-	var List = (_dec = (0, _cerebralViewReact.Decorator)({
-	  isAllChecked: _isAllChecked2.default,
-	  todos: _visibleTodos2.default
-	}), _dec(_class = function (_React$Component) {
-	  _inherits(List, _React$Component);
-	
-	  function List() {
-	    _classCallCheck(this, List);
-	
-	    return _possibleConstructorReturn(this, Object.getPrototypeOf(List).apply(this, arguments));
-	  }
-	
-	  _createClass(List, [{
-	    key: 'renderTodo',
-	    value: function renderTodo(todo, index) {
-	      return _react2.default.createElement(_Todo2.default, { key: index, index: index, todo: todo });
-	    }
-	  }, {
-	    key: 'render',
-	    value: function render() {
-	      var _this2 = this;
-	
-	      return _react2.default.createElement(
-	        'section',
-	        { className: 'main' },
-	        _react2.default.createElement('input', {
-	          className: 'toggle-all',
-	          type: 'checkbox',
-	          checked: this.props.isAllChecked,
-	          onChange: function onChange() {
-	            return _this2.props.signals.app.list.toggleAllChanged();
-	          }
-	        }),
-	        _react2.default.createElement(
-	          'label',
-	          { htmlFor: 'toggle-all' },
-	          'Mark all as complete'
-	        ),
-	        _react2.default.createElement(
-	          'ul',
-	          { className: 'todo-list' },
-	          this.props.todos.map(this.renderTodo.bind(this))
-	        )
-	      );
-	    }
-	  }]);
-	
-	  return List;
-	}(_react2.default.Component)) || _class);
-	exports.default = List;
-
-/***/ },
-/* 268 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-	
-	var _dec, _class;
-	
-	var _react = __webpack_require__(10);
-	
-	var _react2 = _interopRequireDefault(_react);
-	
-	var _classnames = __webpack_require__(269);
-	
-	var _classnames2 = _interopRequireDefault(_classnames);
-	
-	var _cerebralViewReact = __webpack_require__(256);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-	
-	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-	
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-	
-	var Todo = (_dec = (0, _cerebralViewReact.Decorator)(), _dec(_class = function (_React$Component) {
-	  _inherits(Todo, _React$Component);
-	
-	  function Todo() {
-	    _classCallCheck(this, Todo);
-	
-	    return _possibleConstructorReturn(this, Object.getPrototypeOf(Todo).apply(this, arguments));
-	  }
-	
-	  _createClass(Todo, [{
-	    key: 'componentDidUpdate',
-	    value: function componentDidUpdate(prevProps) {
-	      if (!prevProps.todo.$isEditing && this.props.todo.$isEditing) {
-	        this.refs.edit.focus();
-	      }
-	    }
-	  }, {
-	    key: 'onNewTitleChange',
-	    value: function onNewTitleChange(event) {
-	      this.props.signals.app.list.newTitleChanged({
-	        ref: this.props.todo.$ref,
-	        title: event.target.value
-	      });
-	    }
-	  }, {
-	    key: 'onNewTitleSubmit',
-	    value: function onNewTitleSubmit(event) {
-	      event.preventDefault();
-	      this.props.signals.app.list.newTitleSubmitted({
-	        ref: this.props.todo.$ref
-	      });
-	    }
-	  }, {
-	    key: 'onCompletedToggle',
-	    value: function onCompletedToggle() {
-	      this.props.signals.app.list.toggleCompletedChanged({
-	        ref: this.props.todo.$ref,
-	        completed: !this.props.todo.completed
-	      });
-	    }
-	  }, {
-	    key: 'onRemoveClick',
-	    value: function onRemoveClick() {
-	      this.props.signals.app.list.removeTodoClicked({
-	        ref: this.props.todo.$ref
-	      });
-	    }
-	  }, {
-	    key: 'onNewTitleBlur',
-	    value: function onNewTitleBlur() {
-	      this.props.signals.app.list.newTitleAborted({
-	        ref: this.props.todo.$ref
-	      });
-	    }
-	  }, {
-	    key: 'edit',
-	    value: function edit() {
-	      var _this2 = this;
-	
-	      if (this.props.todo.$isSaving) {
-	        return;
-	      }
-	
-	      this.props.signals.app.list.todoDoubleClicked({
-	        ref: this.props.todo.$ref
-	      });
-	
-	      // FOCUS fix
-	      setTimeout(function () {
-	        var input = _this2.refs.edit;
-	        input.focus();
-	        input.value = input.value;
-	      }, 0);
-	    }
-	  }, {
-	    key: 'edit',
-	    value: function edit() {
-	      var _this3 = this;
-	
-	      if (this.props.todo.$isSaving) {
-	        return;
-	      }
-	
-	      this.props.signals.app.list.todoDoubleClicked({
-	        ref: this.props.todo.$ref
-	      });
-	
-	      // FOCUS fix
-	      setTimeout(function () {
-	        var input = _this3.refs.edit;
-	        input.focus();
-	        input.value = input.value;
-	      }, 0);
-	    }
-	  }, {
-	    key: 'render',
-	    value: function render() {
-	      var _this4 = this;
-	
-	      var className = (0, _classnames2.default)({
-	        completed: this.props.todo.completed,
-	        editing: this.props.todo.$isEditing
-	      });
-	
-	      return _react2.default.createElement(
-	        'li',
-	        { className: className },
-	        _react2.default.createElement(
-	          'div',
-	          { className: 'view' },
-	          this.props.todo.$isSaving ? null : _react2.default.createElement('input', {
-	            className: 'toggle',
-	            type: 'checkbox',
-	            disabled: this.props.todo.$isSaving,
-	            onChange: function onChange() {
-	              return _this4.onCompletedToggle();
-	            },
-	            checked: this.props.todo.completed
-	          }),
-	          _react2.default.createElement(
-	            'label',
-	            { onDoubleClick: function onDoubleClick() {
-	                return _this4.edit();
-	              } },
-	            this.props.todo.title,
-	            ' ',
-	            this.props.todo.$isSaving ? _react2.default.createElement(
-	              'small',
-	              null,
-	              '(saving)'
-	            ) : null
-	          ),
-	          this.props.todo.$isSaving ? null : _react2.default.createElement('button', {
-	            className: 'destroy',
-	            onClick: function onClick() {
-	              return _this4.onRemoveClick();
-	            }
-	          })
-	        ),
-	        _react2.default.createElement(
-	          'form',
-	          { onSubmit: function onSubmit(e) {
-	              return _this4.onNewTitleSubmit(e);
-	            } },
-	          _react2.default.createElement('input', {
-	            ref: 'edit',
-	            className: 'edit',
-	            value: this.props.todo.$newTitle || this.props.todo.title,
-	            onBlur: function onBlur() {
-	              return _this4.onNewTitleBlur();
-	            },
-	            onChange: function onChange(e) {
-	              return _this4.onNewTitleChange(e);
-	            }
-	          })
-	        )
-	      );
-	    }
-	  }]);
-	
-	  return Todo;
-	}(_react2.default.Component)) || _class);
-	exports.default = Todo;
-
-/***/ },
-/* 269 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
-	  Copyright (c) 2016 Jed Watson.
-	  Licensed under the MIT License (MIT), see
-	  http://jedwatson.github.io/classnames
-	*/
-	/* global define */
-	
-	(function () {
-		'use strict';
-	
-		var hasOwn = {}.hasOwnProperty;
-	
-		function classNames () {
-			var classes = [];
-	
-			for (var i = 0; i < arguments.length; i++) {
-				var arg = arguments[i];
-				if (!arg) continue;
-	
-				var argType = typeof arg;
-	
-				if (argType === 'string' || argType === 'number') {
-					classes.push(arg);
-				} else if (Array.isArray(arg)) {
-					classes.push(classNames.apply(null, arg));
-				} else if (argType === 'object') {
-					for (var key in arg) {
-						if (hasOwn.call(arg, key) && arg[key]) {
-							classes.push(key);
-						}
-					}
-				}
-			}
-	
-			return classes.join(' ');
-		}
-	
-		if (typeof module !== 'undefined' && module.exports) {
-			module.exports = classNames;
-		} else if (true) {
-			// register as 'classnames', consistent with npm package name
-			!(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_RESULT__ = function () {
-				return classNames;
-			}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
-		} else {
-			window.classNames = classNames;
-		}
-	}());
-
-
-/***/ },
-/* 270 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	exports.default = function (get) {
-	  var todos = get(_visibleTodos2.default);
-	
-	  return todos.filter(function (todo) {
-	    return !todo.completed;
-	  }).length === 0 && todos.length !== 0;
-	};
-	
-	var _visibleTodos = __webpack_require__(271);
-	
-	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-/***/ },
-/* 271 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	exports.default = function (get) {
-	  var todos = get(['app', 'list', 'todos']);
-	  var filter = get(['app', 'footer', 'filter']);
-	
-	  return Object.keys(todos).filter(function (key) {
-	    var todo = todos[key];
-	    return filter === 'all' || filter === 'completed' && todo.completed || filter === 'active' && !todo.completed;
-	  }).map(function (key) {
-	    return todos[key];
-	  });
-	};
-
-/***/ },
-/* 272 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-	
-	var _dec, _class;
-	
-	var _react = __webpack_require__(10);
-	
-	var _react2 = _interopRequireDefault(_react);
-	
-	var _cerebralViewReact = __webpack_require__(256);
-	
-	var _counts = __webpack_require__(273);
-	
-	var _counts2 = _interopRequireDefault(_counts);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-	
-	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-	
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-	
-	var TodosFooter = (_dec = (0, _cerebralViewReact.Decorator)({
-	  filter: ['app', 'footer', 'filter'],
-	  counts: _counts2.default
-	}), _dec(_class = function (_React$Component) {
-	  _inherits(TodosFooter, _React$Component);
-	
-	  function TodosFooter() {
-	    _classCallCheck(this, TodosFooter);
-	
-	    return _possibleConstructorReturn(this, Object.getPrototypeOf(TodosFooter).apply(this, arguments));
-	  }
-	
-	  _createClass(TodosFooter, [{
-	    key: 'renderRemainingCount',
-	    value: function renderRemainingCount() {
-	      var count = this.props.counts.remainingCount;
-	      if (count === 0 || count > 1) {
-	        return count + ' items left';
-	      }
-	      return count + ' items left';
-	    }
-	  }, {
-	    key: 'renderRouteClass',
-	    value: function renderRouteClass(filter) {
-	      return this.props.filter === filter ? 'selected' : '';
-	    }
-	  }, {
-	    key: 'renderCompletedButton',
-	    value: function renderCompletedButton() {
-	      var _this2 = this;
-	
-	      return _react2.default.createElement(
-	        'button',
-	        { className: 'clear-completed', onClick: function onClick() {
-	            return _this2.props.signals.app.footer.clearCompletedClicked();
-	          } },
-	        'Clear completed (',
-	        this.props.counts.completedCount,
-	        ')'
-	      );
-	    }
-	  }, {
-	    key: 'render',
-	    value: function render() {
-	      return _react2.default.createElement(
-	        'footer',
-	        { className: 'footer' },
-	        _react2.default.createElement(
-	          'span',
-	          { className: 'todo-count' },
-	          _react2.default.createElement(
-	            'strong',
-	            null,
-	            this.renderRemainingCount()
-	          )
-	        ),
-	        _react2.default.createElement(
-	          'ul',
-	          { className: 'filters' },
-	          _react2.default.createElement(
-	            'li',
-	            null,
-	            _react2.default.createElement(
-	              _cerebralViewReact.Link,
-	              { className: this.renderRouteClass('all'), signal: 'app.footer.filterClicked' },
-	              'All'
-	            )
-	          ),
-	          _react2.default.createElement(
-	            'li',
-	            null,
-	            _react2.default.createElement(
-	              _cerebralViewReact.Link,
-	              { className: this.renderRouteClass('active'), signal: 'app.footer.filterClicked', params: { filter: 'active' } },
-	              'Active'
-	            )
-	          ),
-	          _react2.default.createElement(
-	            'li',
-	            null,
-	            _react2.default.createElement(
-	              _cerebralViewReact.Link,
-	              { className: this.renderRouteClass('completed'), signal: 'app.footer.filterClicked', params: { filter: 'completed' } },
-	              'Completed'
-	            )
-	          )
-	        ),
-	        this.props.counts.completedCount ? this.renderCompletedButton() : null
-	      );
-	    }
-	  }]);
-	
-	  return TodosFooter;
-	}(_react2.default.Component)) || _class);
-	exports.default = TodosFooter;
-
-/***/ },
-/* 273 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	exports.default = function (get) {
-	  var todos = get(['app', 'list', 'todos']);
-	  var counts = Object.keys(todos).reduce(function (counts, key) {
-	    var todo = todos[key];
-	
-	    if (todo.completed) {
-	      counts.completedCount++;
-	    } else if (!todo.completed) {
-	      counts.remainingCount++;
-	    }
-	
-	    return counts;
-	  }, {
-	    completedCount: 0,
-	    remainingCount: 0
-	  });
-	
-	  return {
-	    remainingCount: counts.remainingCount,
-	    completedCount: counts.completedCount
-	  };
-	};
-
-/***/ },
-/* 274 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _NewTodo = __webpack_require__(275);
-	
-	var _NewTodo2 = _interopRequireDefault(_NewTodo);
-	
-	var _List = __webpack_require__(285);
-	
-	var _List2 = _interopRequireDefault(_List);
-	
-	var _Footer = __webpack_require__(305);
-	
-	var _Footer2 = _interopRequireDefault(_Footer);
-	
-	var _appMounted = __webpack_require__(312);
-	
-	var _appMounted2 = _interopRequireDefault(_appMounted);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = function () {
-	  return function (module, controller) {
-	    module.addModules({
-	      new: (0, _NewTodo2.default)(),
-	      list: (0, _List2.default)(),
-	      footer: (0, _Footer2.default)()
-	    });
-	
-	    module.addSignals({
-	      appMounted: _appMounted2.default
-	    });
-	
-	    controller.on('modulesLoaded', function () {
-	      controller.getSignals().app.appMounted({}, { immediate: true });
-	    });
-	  };
-	};
-
-/***/ },
-/* 275 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _submitted = __webpack_require__(276);
-	
-	var _submitted2 = _interopRequireDefault(_submitted);
-	
-	var _titleChanged = __webpack_require__(283);
-	
-	var _titleChanged2 = _interopRequireDefault(_titleChanged);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = function () {
-	  return function (module) {
-	    module.addState({
-	      title: '',
-	      isSaving: false
-	    });
-	
-	    module.addSignals({
-	      titleChanged: _titleChanged2.default,
-	      submitted: _submitted2.default
-	    });
-	  };
-	};
-
-/***/ },
-/* 276 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _add = __webpack_require__(277);
-	
-	var _add2 = _interopRequireDefault(_add);
-	
-	var _save = __webpack_require__(278);
-	
-	var _save2 = _interopRequireDefault(_save);
-	
-	var _setSaving = __webpack_require__(279);
-	
-	var _setSaving2 = _interopRequireDefault(_setSaving);
-	
-	var _unsetSaving = __webpack_require__(280);
-	
-	var _unsetSaving2 = _interopRequireDefault(_unsetSaving);
-	
-	var _updateTodo = __webpack_require__(281);
-	
-	var _updateTodo2 = _interopRequireDefault(_updateTodo);
-	
-	var _setError = __webpack_require__(282);
-	
-	var _setError2 = _interopRequireDefault(_setError);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_add2.default, _setSaving2.default, _save2.default, {
-	  success: [_updateTodo2.default],
-	  error: [_setError2.default]
-	}, _unsetSaving2.default];
-
-/***/ },
-/* 277 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function addTodo(_ref) {
-	  var state = _ref.state;
-	  var output = _ref.output;
-	  var services = _ref.services;
-	
-	  var ref = services.refs.next(state);
-	  var todo = {
-	    $ref: ref,
-	    $isSaving: true,
-	    title: state.get('app.new.title'),
-	    completed: false
-	  };
-	
-	  state.set('app.list.todos.' + ref, todo);
-	  state.set('app.new.title', '');
-	
-	  output({
-	    ref: ref
-	  });
-	}
-	
-	exports.default = addTodo;
-
-/***/ },
-/* 278 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function saveTodo(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	  var output = _ref.output;
-	  var services = _ref.services;
-	
-	  var todo = state.get('app.list.todos.' + input.ref);
-	
-	  services.http.post('/api/todos', todo).then(output.success).catch(output.error);
-	}
-	
-	saveTodo.async = true;
-	
-	exports.default = saveTodo;
-
-/***/ },
-/* 279 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setSaving(_ref) {
-	  var state = _ref.state;
-	
-	  state.set('app.new.isSaving', true);
-	}
-	
-	exports.default = setSaving;
-
-/***/ },
-/* 280 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function unsetSaving(_ref) {
-	  var state = _ref.state;
-	
-	  state.set('app.new.isSaving', false);
-	}
-	
-	exports.default = unsetSaving;
-
-/***/ },
-/* 281 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function updateTodo(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  state.merge('app.list.todos.' + input.ref, {
-	    '@id': input.result['@id'],
-	    $isSaving: false
-	  });
-	}
-	
-	exports.default = updateTodo;
-
-/***/ },
-/* 282 */
-/***/ function(module, exports) {
-
-	"use strict";
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setError(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  state.merge("app.list.todos." + input.ref, {
-	    id: input.result.id,
-	    $isSaving: false,
-	    $error: input.result.error
-	  });
-	}
-	
-	exports.default = setError;
-
-/***/ },
-/* 283 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _setTitle = __webpack_require__(284);
-	
-	var _setTitle2 = _interopRequireDefault(_setTitle);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = {
-	  chain: [_setTitle2.default],
-	  immediate: true
-	};
-
-/***/ },
-/* 284 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setTitle(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  state.set('app.new.title', input.title);
-	}
-	
-	exports.default = setTitle;
-
-/***/ },
-/* 285 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _newTitleChanged = __webpack_require__(286);
-	
-	var _newTitleChanged2 = _interopRequireDefault(_newTitleChanged);
-	
-	var _newTitleSubmitted = __webpack_require__(288);
-	
-	var _newTitleSubmitted2 = _interopRequireDefault(_newTitleSubmitted);
-	
-	var _removeTodoClicked = __webpack_require__(293);
-	
-	var _removeTodoClicked2 = _interopRequireDefault(_removeTodoClicked);
-	
-	var _todoDoubleClicked = __webpack_require__(297);
-	
-	var _todoDoubleClicked2 = _interopRequireDefault(_todoDoubleClicked);
-	
-	var _toggleAllChanged = __webpack_require__(299);
-	
-	var _toggleAllChanged2 = _interopRequireDefault(_toggleAllChanged);
-	
-	var _toggleCompletedChanged = __webpack_require__(302);
-	
-	var _toggleCompletedChanged2 = _interopRequireDefault(_toggleCompletedChanged);
-	
-	var _newTitleAborted = __webpack_require__(304);
-	
-	var _newTitleAborted2 = _interopRequireDefault(_newTitleAborted);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = function () {
-	  return function (module) {
-	    module.addState({
-	      todos: {},
-	      isAllChecked: false,
-	      editedTodo: null,
-	      showCompleted: true,
-	      showNotCompleted: true
-	    });
-	
-	    module.addSignals({
-	      newTitleChanged: _newTitleChanged2.default,
-	      newTitleSubmitted: _newTitleSubmitted2.default,
-	      removeTodoClicked: _removeTodoClicked2.default,
-	      todoDoubleClicked: _todoDoubleClicked2.default,
-	      toggleAllChanged: _toggleAllChanged2.default,
-	      toggleCompletedChanged: _toggleCompletedChanged2.default,
-	      newTitleAborted: _newTitleAborted2.default
-	    });
-	  };
-	};
-
-/***/ },
-/* 286 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _setTodoNewTitle = __webpack_require__(287);
-	
-	var _setTodoNewTitle2 = _interopRequireDefault(_setTodoNewTitle);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = {
-	  chain: [_setTodoNewTitle2.default],
-	  immediate: true
-	};
-
-/***/ },
-/* 287 */
-/***/ function(module, exports) {
-
-	"use strict";
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setTodoNewTitle(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  state.merge("app.list.todos." + input.ref, {
-	    $newTitle: input.title
-	  });
-	}
-	
-	exports.default = setTodoNewTitle;
-
-/***/ },
-/* 288 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _putTodo = __webpack_require__(289);
-	
-	var _putTodo2 = _interopRequireDefault(_putTodo);
-	
-	var _overwriteTodoTitle = __webpack_require__(290);
-	
-	var _overwriteTodoTitle2 = _interopRequireDefault(_overwriteTodoTitle);
-	
-	var _setPutError = __webpack_require__(291);
-	
-	var _setPutError2 = _interopRequireDefault(_setPutError);
-	
-	var _stopEditingTodo = __webpack_require__(292);
-	
-	var _stopEditingTodo2 = _interopRequireDefault(_stopEditingTodo);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_putTodo2.default, {
-	  success: [_overwriteTodoTitle2.default],
-	  error: [_setPutError2.default]
-	}, _stopEditingTodo2.default];
-
-/***/ },
-/* 289 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function putTodo(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	  var output = _ref.output;
-	  var services = _ref.services;
-	
-	  var todo = state.select('app.list.todos.' + input.ref);
-	  var url = todo.get('@id');
-	  var title = todo.get('$newTitle') || todo.get('title');
-	  var completed = input.completed || todo.get('completed');
-	  var todoObj = {
-	    title: title,
-	    completed: completed
-	  };
-	  services.http.put(url, todoObj).then(output.success).catch(output.error);
-	}
-	
-	putTodo.async = true;
-	
-	exports.default = putTodo;
-
-/***/ },
-/* 290 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function overwriteTodoTitle(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  var todo = state.select('app.list.todos.' + input.ref);
-	  todo.set('title', todo.get('$newTitle'));
-	}
-	
-	exports.default = overwriteTodoTitle;
-
-/***/ },
-/* 291 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setPutError(_ref) {
-	  var state = _ref.state;
-	
-	  state.set(['app.list.todos.$putError'], true);
-	}
-	
-	exports.default = setPutError;
-
-/***/ },
-/* 292 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function stopEditingTodo(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  var todo = state.select('app.list.todos.' + input.ref);
-	
-	  todo.merge({
-	    $isEditing: false
-	  });
-	  todo.unset('$newTitle');
-	}
-	
-	exports.default = stopEditingTodo;
-
-/***/ },
-/* 293 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _deleteTodo = __webpack_require__(294);
-	
-	var _deleteTodo2 = _interopRequireDefault(_deleteTodo);
-	
-	var _removeTodo = __webpack_require__(295);
-	
-	var _removeTodo2 = _interopRequireDefault(_removeTodo);
-	
-	var _setDeleteError = __webpack_require__(296);
-	
-	var _setDeleteError2 = _interopRequireDefault(_setDeleteError);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_deleteTodo2.default, {
-	  success: [_removeTodo2.default],
-	  error: [_setDeleteError2.default]
-	}];
-
-/***/ },
-/* 294 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function deleteTodo(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	  var output = _ref.output;
-	  var services = _ref.services;
-	
-	  var todo = state.select('app.list.todos.' + input.ref);
-	  var url = todo.get('@id');
-	  services.http.delete(url).then(output.success).catch(output.error);
-	}
-	
-	deleteTodo.async = true;
-	
-	exports.default = deleteTodo;
-
-/***/ },
-/* 295 */
-/***/ function(module, exports) {
-
-	"use strict";
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function removeTodo(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  state.unset("app.list.todos." + input.ref);
-	}
-	
-	exports.default = removeTodo;
-
-/***/ },
-/* 296 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setDeleteError(_ref) {
-	  var state = _ref.state;
-	
-	  state.set(['app.list.todos.$deleteError'], true);
-	}
-	
-	exports.default = setDeleteError;
-
-/***/ },
-/* 297 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _editTodo = __webpack_require__(298);
-	
-	var _editTodo2 = _interopRequireDefault(_editTodo);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_editTodo2.default];
-
-/***/ },
-/* 298 */
-/***/ function(module, exports) {
-
-	"use strict";
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function editTodo(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  var todo = state.get("app.list.todos." + input.ref);
-	
-	  state.merge("app.list.todos." + input.ref, {
-	    $isEditing: !todo.$isSaving
-	  });
-	}
-	
-	exports.default = editTodo;
-
-/***/ },
-/* 299 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _putToggleAll = __webpack_require__(300);
-	
-	var _putToggleAll2 = _interopRequireDefault(_putToggleAll);
-	
-	var _toggleAllChecked = __webpack_require__(301);
-	
-	var _toggleAllChecked2 = _interopRequireDefault(_toggleAllChecked);
-	
-	var _setPutError = __webpack_require__(291);
-	
-	var _setPutError2 = _interopRequireDefault(_setPutError);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_putToggleAll2.default, {
-	  success: [_toggleAllChecked2.default],
-	  error: [_setPutError2.default]
-	}];
-
-/***/ },
-/* 300 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function putToggleAll(_ref) {
-	  var state = _ref.state;
-	  var output = _ref.output;
-	  var services = _ref.services;
-	
-	  var completed = !state.get('app.list.isAllChecked');
-	  var todos = state.get('app.list.todos');
-	
-	  Object.keys(todos).forEach(function (ref) {
-	    var todo = state.select('app.list.todos.' + ref);
-	    var url = todo.get('@id');
-	    var todoObj = {
-	      title: todo.get('title'),
-	      completed: completed
-	    };
-	    services.http.put(url, todoObj).then(output.success).catch(output.error);
-	  });
-	}
-	
-	putToggleAll.async = true;
-	
-	exports.default = putToggleAll;
-
-/***/ },
-/* 301 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function toggleAllChecked(_ref) {
-	  var state = _ref.state;
-	
-	  var isCompleted = !state.get('app.list.isAllChecked');
-	  var todos = state.get('app.list.todos');
-	
-	  Object.keys(todos).forEach(function (key) {
-	    var todo = todos[key];
-	    state.set('app.list.todos.' + todo.$ref + '.completed', isCompleted);
-	  });
-	
-	  state.set('app.list.isAllChecked', isCompleted);
-	}
-	
-	exports.default = toggleAllChecked;
-
-/***/ },
-/* 302 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _putTodo = __webpack_require__(289);
-	
-	var _putTodo2 = _interopRequireDefault(_putTodo);
-	
-	var _toggleTodoCompleted = __webpack_require__(303);
-	
-	var _toggleTodoCompleted2 = _interopRequireDefault(_toggleTodoCompleted);
-	
-	var _setPutError = __webpack_require__(291);
-	
-	var _setPutError2 = _interopRequireDefault(_setPutError);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_putTodo2.default, {
-	  success: [_toggleTodoCompleted2.default],
-	  error: [_setPutError2.default]
-	}];
-
-/***/ },
-/* 303 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function toggleTodoCompleted(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  var todo = state.select('app.list.todos.' + input.ref);
-	  todo.set('completed', input.completed);
-	}
-	
-	exports.default = toggleTodoCompleted;
-
-/***/ },
-/* 304 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _stopEditingTodo = __webpack_require__(292);
-	
-	var _stopEditingTodo2 = _interopRequireDefault(_stopEditingTodo);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_stopEditingTodo2.default];
-
-/***/ },
-/* 305 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _clearCompletedClicked = __webpack_require__(306);
-	
-	var _clearCompletedClicked2 = _interopRequireDefault(_clearCompletedClicked);
-	
-	var _filterClicked = __webpack_require__(310);
-	
-	var _filterClicked2 = _interopRequireDefault(_filterClicked);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = function () {
-	  return function (module) {
-	    module.addState({
-	      filter: 'all'
-	    });
-	
-	    module.addSignals({
-	      clearCompletedClicked: _clearCompletedClicked2.default,
-	      filterClicked: _filterClicked2.default
-	    });
-	  };
-	};
-
-/***/ },
-/* 306 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _getCompleted = __webpack_require__(307);
-	
-	var _getCompleted2 = _interopRequireDefault(_getCompleted);
-	
-	var _deleteCompleted = __webpack_require__(308);
-	
-	var _deleteCompleted2 = _interopRequireDefault(_deleteCompleted);
-	
-	var _clearCompleted = __webpack_require__(309);
-	
-	var _clearCompleted2 = _interopRequireDefault(_clearCompleted);
-	
-	var _setDeleteError = __webpack_require__(296);
-	
-	var _setDeleteError2 = _interopRequireDefault(_setDeleteError);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_getCompleted2.default, _deleteCompleted2.default, {
-	  success: [_clearCompleted2.default],
-	  error: [_setDeleteError2.default]
-	}];
-
-/***/ },
-/* 307 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function getCompleted(_ref) {
-	  var state = _ref.state;
-	  var output = _ref.output;
-	
-	  var todos = state.get('app.list.todos');
-	  var completedTodos = [];
-	
-	  Object.keys(todos).forEach(function (key) {
-	    if (todos[key].completed && !todos[key].$isSaving) {
-	      var todo = state.select('app.list.todos.' + key);
-	      completedTodos.push(todo);
-	    }
-	  });
-	
-	  output({
-	    completedTodos: completedTodos
-	  });
-	}
-	
-	exports.default = getCompleted;
-
-/***/ },
-/* 308 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function deleteCompleted(_ref) {
-	  var input = _ref.input;
-	  var output = _ref.output;
-	  var services = _ref.services;
-	
-	  input.completedTodos.forEach(function (todo) {
-	    var url = todo.get('@id');
-	    services.http.delete(url).then(output.success).catch(output.error);
-	  });
-	}
-	
-	deleteCompleted.async = true;
-	
-	exports.default = deleteCompleted;
-
-/***/ },
-/* 309 */
-/***/ function(module, exports) {
-
-	"use strict";
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function clearCompleted(_ref) {
-	  var input = _ref.input;
-	
-	  input.completedTodos.forEach(function (todo) {
-	    todo.unset();
-	  });
-	}
-	
-	exports.default = clearCompleted;
-
-/***/ },
-/* 310 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _setFilter = __webpack_require__(311);
-	
-	var _setFilter2 = _interopRequireDefault(_setFilter);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_setFilter2.default];
-
-/***/ },
-/* 311 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setFilter(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	
-	  state.set('app.footer.filter', input.filter || 'all');
-	}
-	
-	exports.default = setFilter;
-
-/***/ },
-/* 312 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	var _setLoadingTodos = __webpack_require__(313);
-	
-	var _setLoadingTodos2 = _interopRequireDefault(_setLoadingTodos);
-	
-	var _getTodos = __webpack_require__(314);
-	
-	var _getTodos2 = _interopRequireDefault(_getTodos);
-	
-	var _setTodos = __webpack_require__(315);
-	
-	var _setTodos2 = _interopRequireDefault(_setTodos);
-	
-	var _setTodosError = __webpack_require__(316);
-	
-	var _setTodosError2 = _interopRequireDefault(_setTodosError);
-	
-	var _unsetLoadingTodos = __webpack_require__(317);
-	
-	var _unsetLoadingTodos2 = _interopRequireDefault(_unsetLoadingTodos);
-	
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-	
-	exports.default = [_setLoadingTodos2.default, _getTodos2.default, {
-	  success: [_setTodos2.default],
-	  error: [_setTodosError2.default]
-	}, _unsetLoadingTodos2.default];
-
-/***/ },
-/* 313 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setLoadingTodos(_ref) {
-	  var state = _ref.state;
-	
-	  state.set(['app.list.todos.isLoading'], true);
-	}
-	
-	exports.default = setLoadingTodos;
-
-/***/ },
-/* 314 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function getTodos(_ref) {
-	  var services = _ref.services;
-	  var output = _ref.output;
-	
-	  services.http.get('/api/todos').then(output.success).catch(output.error);
-	}
-	
-	getTodos.async = true;
-	
-	exports.default = getTodos;
-
-/***/ },
-/* 315 */
-/***/ function(module, exports) {
-
-	"use strict";
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setTodos(_ref) {
-	  var input = _ref.input;
-	  var state = _ref.state;
-	  var services = _ref.services;
-	
-	  input.result.todos.forEach(function (todo) {
-	    var ref = services.refs.next(state);
-	    todo.$ref = ref;
-	    todo.$isSaving = false;
-	
-	    state.set("app.list.todos." + ref, todo);
-	  });
-	}
-	
-	exports.default = setTodos;
-
-/***/ },
-/* 316 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function setTodosError(_ref) {
-	  var state = _ref.state;
-	
-	  state.set(['app.list.todos.$error'], true);
-	}
-	
-	exports.default = setTodosError;
-
-/***/ },
-/* 317 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	function unsetLoadingTodos(_ref) {
-	  var state = _ref.state;
-	
-	  state.set(['app.list.todos.isLoading'], false);
-	}
-	
-	exports.default = unsetLoadingTodos;
-
-/***/ },
-/* 318 */
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	
-	exports.default = function () {
-	  return function (module) {
-	    module.alias('cerebral-module-refs');
-	
-	    module.addState({
-	      nextRef: 0
-	    });
-	
-	    module.addServices({
-	      next: function next(state) {
-	        var nextId = state.get([module.name, 'nextRef']);
-	        state.set([module.name, 'nextRef'], nextId + 1);
-	        return nextId;
-	      }
-	    });
-	  };
-	};
-
-/***/ },
-/* 319 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/* eslint-env browser*/
-	var SignalStore = __webpack_require__(320)
-	var utils = __webpack_require__(325)
-	var requestAnimationFrame = requestAnimationFrame || function (cb) { setTimeout(cb) }
-	
-	module.exports = function Devtools () {
-	  if (typeof window === 'undefined') { return function () {} }
-	  if (typeof window.chrome === 'undefined') { return function () {} }
-	
-	  return function init (module, controller) {
-	    if (controller.addContextProvider) {
-	      controller.addContextProvider(__webpack_require__(326))
-	      controller.addContextProvider(__webpack_require__(327))
-	      controller.addContextProvider(__webpack_require__(328))
-	      controller.addContextProvider(__webpack_require__(329))
-	    }
-	
-	    module.addModules({
-	      store: SignalStore()
-	    })
-	
-	    module.addSignals({
-	      modelChanged: [
-	        function changeModel (arg) {
-	          arg.state.set(arg.input.path, arg.input.value)
-	        }
-	      ]
-	    })
-	
-	    var signalStore = controller.getServices()[module.name].store
-	
-	    var isInitialized = false
-	    var hasInitialPayload = false
-	    var disableDebugger = false
-	    var willKeepState = false
-	    var APP_ID = String(Date.now())
-	    var VERSION = 'v3'
-	    var isAwaitingFrame = false
-	    var nextSignalInLine = 0
-	
-	    var hasExecutingSignal = function (signal) {
-	      function traverseSignals (signals) {
-	        return signals.reduce(function (hasExecutingSignal, signal) {
-	          if (hasExecutingSignal || signal.isExecuting) {
-	            return true
-	          }
-	
-	          return traverseChain(signal.branches)
-	        }, false)
-	      }
-	
-	      function traverseChain (chain) {
-	        return chain.reduce(function (hasExecutingSignal, action) {
-	          if (hasExecutingSignal) {
-	            return true
-	          }
-	
-	          if (Array.isArray(action)) {
-	            return traverseChain(action)
-	          }
-	
-	          return traverseAction(action)
-	        }, false)
-	      }
-	
-	      function traverseAction (action) {
-	        var hasExecutingSignal = false
-	        if (action.outputPath) {
-	          hasExecutingSignal = traverseChain(action.outputs[action.outputPath])
-	        }
-	        if (action.signals) {
-	          hasExecutingSignal = hasExecutingSignal || traverseSignals(action.signals)
-	        }
-	        return hasExecutingSignal
-	      }
-	
-	      if (signal.isExecuting) {
-	        return true
-	      }
-	
-	      return traverseChain(signal.branches)
-	    }
-	
-	    var getOldestExecutingSignalIndex = function (signals, fromIndex) {
-	      for (var x = fromIndex; x < signals.length; x++) {
-	        if (hasExecutingSignal(signals[x])) {
-	          return x
-	        }
-	      }
-	      return signals.length - 1
-	    }
-	
-	    var update = function (signalType, data, forceUpdate) {
-	      if (!forceUpdate && (disableDebugger || !data || !hasInitialPayload)) {
-	        return
-	      }
-	
-	      var detail = {
-	        type: signalType,
-	        app: APP_ID,
-	        version: VERSION,
-	        data: data
-	      }
-	
-	      var event = new CustomEvent('cerebral.dev.update', {
-	        detail: JSON.stringify(detail)
-	      })
-	      window.dispatchEvent(event)
-	    }
-	
-	    var getInit = function () {
-	      var signals = signalStore.getSignals()
-	      nextSignalInLine = signals.length ? getOldestExecutingSignalIndex(signals, nextSignalInLine) : 0
-	      hasInitialPayload = true
-	      return {
-	        initialModel: controller.get(),
-	        signals: signals,
-	        willKeepState: willKeepState,
-	        disableDebugger: disableDebugger,
-	        isExecutingAsync: signalStore.isExecutingAsync()
-	      }
-	    }
-	
-	    var updateSignals = function () {
-	      if (isAwaitingFrame) {
-	        return
-	      }
-	
-	      isAwaitingFrame = true
-	      requestAnimationFrame(function () {
-	        var signals = signalStore.getSignals()
-	
-	        // In case last executed signal is now done
-	        update('signals', {
-	          signals: signals.slice(nextSignalInLine),
-	          isExecutingAsync: signalStore.isExecutingAsync()
-	        })
-	
-	        // Set new last executed signal
-	        nextSignalInLine = signals.length ? getOldestExecutingSignalIndex(signals, nextSignalInLine) : 0
-	        isAwaitingFrame = false
-	      })
-	    }
-	
-	    var updateSettings = function () {
-	      update('settings', {
-	        willKeepState: willKeepState,
-	        disableDebugger: disableDebugger
-	      }, true)
-	    }
-	
-	    window.addEventListener('cerebral.dev.debuggerPing', function () {
-	      var signals = []
-	
-	      if (utils.hasLocalStorage()) {
-	        disableDebugger = JSON.parse(localStorage.getItem('cerebral_disable_debugger'))
-	        signals = JSON.parse(localStorage.getItem('cerebral_signals')) || []
-	        willKeepState = JSON.parse(localStorage.getItem('cerebral_willKeepState'))
-	      }
-	
-	      // Might be an async signal running here
-	      if (willKeepState && signalStore.isExecutingAsync()) {
-	        controller.once('signalEnd', function () {
-	          signalStore.setSignals(signals)
-	          signalStore.remember(signalStore.getSignals().length - 1)
-	          isInitialized = true
-	          var event = new CustomEvent('cerebral.dev.cerebralPong', {
-	            detail: JSON.stringify({
-	              type: 'init',
-	              app: APP_ID,
-	              version: VERSION,
-	              data: getInit()
-	            })
-	          })
-	          window.dispatchEvent(event)
-	        })
-	      } else {
-	        signalStore.setSignals(signals)
-	        signalStore.rememberInitial(signalStore.getSignals().length - 1)
-	        isInitialized = true
-	        var event = new CustomEvent('cerebral.dev.cerebralPong', {
-	          detail: JSON.stringify({
-	            type: 'init',
-	            app: APP_ID,
-	            version: VERSION,
-	            data: getInit()
-	          })
-	        })
-	        window.dispatchEvent(event)
-	      }
-	    })
-	
-	    window.addEventListener('cerebral.dev.toggleKeepState', function () {
-	      willKeepState = !willKeepState
-	      updateSettings()
-	    })
-	
-	    window.addEventListener('cerebral.dev.toggleDisableDebugger', function () {
-	      disableDebugger = !disableDebugger
-	      if (disableDebugger && willKeepState) {
-	        willKeepState = !willKeepState
-	      }
-	      updateSettings()
-	    })
-	
-	    window.addEventListener('cerebral.dev.resetStore', function () {
-	      signalStore.reset()
-	      controller.emit('change')
-	      update()
-	    })
-	
-	    window.addEventListener('cerebral.dev.remember', function (event) {
-	      signalStore.remember(event.detail)
-	    })
-	
-	    window.addEventListener('cerebral.dev.rewrite', function (event) {
-	      var signals = signalStore.getSignals()
-	      signals.splice(event.detail + 1, signals.length - 1 - event.detail)
-	      signalStore.remember(event.detail)
-	    })
-	
-	    window.addEventListener('cerebral.dev.logPath', function (event) {
-	      var name = event.detail.name
-	      var value = controller.get(event.detail.path)
-	      // toValue instead?
-	      console.log('CEREBRAL - ' + name + ':', value.toJS ? value.toJS() : value)
-	    })
-	
-	    window.addEventListener('cerebral.dev.logModel', function (event) {
-	      console.log('CEREBRAL - model:', controller.logModel())
-	    })
-	
-	    window.addEventListener('cerebral.dev.changeModel', function (event) {
-	      module.getSignals().modelChanged(event.detail)
-	    })
-	
-	    window.addEventListener('unload', function () {
-	      signalStore.removeRunningSignals()
-	
-	      if (utils.hasLocalStorage()) {
-	        localStorage.setItem('cerebral_signals', isInitialized && willKeepState ? JSON.stringify(signalStore.getSignals()) : JSON.stringify([]))
-	        localStorage.setItem('cerebral_willKeepState', isInitialized && JSON.stringify(willKeepState))
-	        localStorage.setItem('cerebral_disable_debugger', isInitialized && JSON.stringify(disableDebugger))
-	      }
-	    })
-	
-	    document.addEventListener('visibilitychange', function () {
-	      if (!document.hidden) {
-	        updateSettings()
-	      }
-	    })
-	
-	    var services = {
-	      update: update,
-	      start: function () {
-	        console.warn('Cerebral: devtools.start() method is deprecated. Devtools has started automatically.')
-	      }
-	    }
-	
-	    module.addServices(services)
-	
-	    controller.getDevtools = function () {
-	      console.warn('Cerebral: controller.getDevtools() method is deprecated. Please upgrade your view package to latest version.')
-	      return services
-	    }
-	
-	    function start () {
-	      if (window.__CEREBRAL_DEVTOOLS_GLOBAL_HOOK__) {
-	        window.__CEREBRAL_DEVTOOLS_GLOBAL_HOOK__.signals = controller.getSignals()
-	      }
-	
-	      var event = new CustomEvent('cerebral.dev.cerebralPing')
-	      window.dispatchEvent(event)
-	
-	      console.assert(controller.listeners('modulesLoaded')[0] === start, 'Cerebral devtools: Please do not place any listeners to `modulesLoaded` event before devtools\'s one.')
-	    }
-	
-	    var listeners = controller.listeners('modulesLoaded')
-	    controller.removeAllListeners('modulesLoaded')
-	
-	    controller.on('modulesLoaded', start)
-	    listeners.forEach(function (listener) {
-	      controller.on('modulesLoaded', listener)
-	    })
-	
-	    controller.on('change', updateSignals)
-	  }
-	}
-
-
-/***/ },
-/* 320 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	  SignalStore will keep track of all signals triggered. It keeps an array of signals with
-	  actions and mutations related to that signal. It will also track any async signals processing. The SignalStore
-	  is able to reset state and travel to a "specific point in time" by playing back the signals up to a certain
-	  signal.
-	*/
-	var uuid = __webpack_require__(321)
-	
-	module.exports = function SignalStore () {
-	  return function (module, controller) {
-	    var signals = []
-	    var isRemembering = false
-	    var currentIndex = signals.length - 1
-	    var hasRememberedInitial = false
-	    var asyncActionsRunning = []
-	
-	    if (controller.addContextProvider) {
-	      controller.addContextProvider(__webpack_require__(323))
-	      controller.addContextProvider(__webpack_require__(324))
-	    }
-	
-	    var addAsyncAction = function (action) {
-	      asyncActionsRunning.push(action)
-	    }
-	
-	    var removeAsyncAction = function (action) {
-	      asyncActionsRunning.splice(asyncActionsRunning.indexOf(action), 1)
-	    }
-	
-	    var addSignal = function (signal, options) {
-	      options = options || {}
-	
-	      if (!isRemembering) {
-	        signal.signalStoreRef = uuid.v4()
-	
-	        if (asyncActionsRunning.length) {
-	          var currentAction = asyncActionsRunning[asyncActionsRunning.length - 1]
-	          currentAction.signals = currentAction.signals || []
-	          currentAction.signals.push(signal)
-	        } else {
-	          currentIndex++
-	          signals.push(signal)
-	        }
-	      }
-	    }
-	
-	    var services = {
-	      // This is used when loading up the app and producing the last known state
-	      rememberNow: function () {
-	        if (!signals.length) {
-	          return
-	        }
-	
-	        currentIndex = signals.length - 1
-	        this.remember(currentIndex)
-	      },
-	
-	      // Will reset the SignalStore
-	      reset: function () {
-	        if (!isRemembering) {
-	          signals = []
-	
-	          currentIndex = -1
-	
-	          controller.emit('reset')
-	        }
-	      },
-	
-	      rememberInitial: function (index) {
-	        // Both router and debugger might try to do initial remembering
-	        if (hasRememberedInitial) {
-	          return
-	        }
-	
-	        hasRememberedInitial = true
-	        this.remember(index)
-	      },
-	
-	      remember: function (index) {
-	        // Flag that we are remembering
-	        isRemembering = true
-	        controller.emit('reset')
-	
-	        // If going back to initial state, just return and update
-	        if (index === -1) {
-	          currentIndex = index
-	          isRemembering = false
-	        } else {
-	          // Start from beginning
-	          currentIndex = -1
-	
-	          // Go through signals
-	          try {
-	            for (var x = 0; x <= index; x++) {
-	              var signal = signals[x]
-	              if (!signal) {
-	                break
-	              }
-	
-	              // Trigger signal and then set what has become the current signal
-	              var signalMethodPath = signal.name.split('.').reduce(function (signals, key) {
-	                return signals[key]
-	              }, controller.getSignals())
-	              signalMethodPath(signal.payload || signal.input, {
-	                branches: signal.branches
-	              })
-	              currentIndex = x
-	            }
-	          } catch (e) {
-	            console.log(e.stack)
-	            console.warn('CEREBRAL - There was an error remembering state, it has been reset')
-	            this.reset()
-	          }
-	        }
-	
-	        controller.emit('change')
-	        isRemembering = false
-	      },
-	
-	      removeRunningSignals: function () {
-	        for (var x = 0; x < signals.length; x++) {
-	          if (signals[x].isExecuting) {
-	            signals.splice(x, 1)
-	            x--
-	          }
-	        }
-	      },
-	
-	      getSignals: function () {
-	        return signals
-	      },
-	
-	      setSignals: function (newSignals) {
-	        signals = signals.concat(newSignals)
-	      },
-	
-	      isExecutingAsync: function () {
-	        return !!asyncActionsRunning.length
-	      },
-	
-	      isRemembering: function () {
-	        return isRemembering
-	      },
-	
-	      getCurrentIndex: function () {
-	        return currentIndex
-	      }
-	    }
-	
-	    module.addServices(services)
-	    controller.getStore = function getStore () {
-	      console.warn('Cerebral: controller.getStore() method is deprecated.')
-	      return services
-	    }
-	
-	    controller.on('signalTrigger', function (event) {
-	      var signal = event.signal
-	
-	      if (!isRemembering && currentIndex !== -1 && currentIndex < signals.length - 1) {
-	        signal.preventSignalRun()
-	        console.warn('Cerebral - Looking in the past, ignored signal ' + signal.name)
-	      }
-	    })
-	    controller.on('signalStart', function (event) {
-	      if (!event.signal.isPrevented) addSignal(event.signal)
-	    })
-	    controller.on('actionStart', function (event) {
-	      var action = event.action
-	      if (action.isAsync) addAsyncAction(action)
-	    })
-	    controller.on('actionEnd', function (event) {
-	      var action = event.action
-	      if (action.isAsync) removeAsyncAction(action)
-	    })
-	  }
-	}
-
-
-/***/ },
-/* 321 */
-/***/ function(module, exports, __webpack_require__) {
-
-	//     uuid.js
-	//
-	//     Copyright (c) 2010-2012 Robert Kieffer
-	//     MIT License - http://opensource.org/licenses/mit-license.php
-	
-	// Unique ID creation requires a high quality random # generator.  We feature
-	// detect to determine the best RNG source, normalizing to a function that
-	// returns 128-bits of randomness, since that's what's usually required
-	var _rng = __webpack_require__(322);
-	
-	// Maps for number <-> hex string conversion
-	var _byteToHex = [];
-	var _hexToByte = {};
-	for (var i = 0; i < 256; i++) {
-	  _byteToHex[i] = (i + 0x100).toString(16).substr(1);
-	  _hexToByte[_byteToHex[i]] = i;
-	}
-	
-	// **`parse()` - Parse a UUID into it's component bytes**
-	function parse(s, buf, offset) {
-	  var i = (buf && offset) || 0, ii = 0;
-	
-	  buf = buf || [];
-	  s.toLowerCase().replace(/[0-9a-f]{2}/g, function(oct) {
-	    if (ii < 16) { // Don't overflow!
-	      buf[i + ii++] = _hexToByte[oct];
-	    }
-	  });
-	
-	  // Zero out remaining bytes if string was short
-	  while (ii < 16) {
-	    buf[i + ii++] = 0;
-	  }
-	
-	  return buf;
-	}
-	
-	// **`unparse()` - Convert UUID byte array (ala parse()) into a string**
-	function unparse(buf, offset) {
-	  var i = offset || 0, bth = _byteToHex;
-	  return  bth[buf[i++]] + bth[buf[i++]] +
-	          bth[buf[i++]] + bth[buf[i++]] + '-' +
-	          bth[buf[i++]] + bth[buf[i++]] + '-' +
-	          bth[buf[i++]] + bth[buf[i++]] + '-' +
-	          bth[buf[i++]] + bth[buf[i++]] + '-' +
-	          bth[buf[i++]] + bth[buf[i++]] +
-	          bth[buf[i++]] + bth[buf[i++]] +
-	          bth[buf[i++]] + bth[buf[i++]];
-	}
-	
-	// **`v1()` - Generate time-based UUID**
-	//
-	// Inspired by https://github.com/LiosK/UUID.js
-	// and http://docs.python.org/library/uuid.html
-	
-	// random #'s we need to init node and clockseq
-	var _seedBytes = _rng();
-	
-	// Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
-	var _nodeId = [
-	  _seedBytes[0] | 0x01,
-	  _seedBytes[1], _seedBytes[2], _seedBytes[3], _seedBytes[4], _seedBytes[5]
-	];
-	
-	// Per 4.2.2, randomize (14 bit) clockseq
-	var _clockseq = (_seedBytes[6] << 8 | _seedBytes[7]) & 0x3fff;
-	
-	// Previous uuid creation time
-	var _lastMSecs = 0, _lastNSecs = 0;
-	
-	// See https://github.com/broofa/node-uuid for API details
-	function v1(options, buf, offset) {
-	  var i = buf && offset || 0;
-	  var b = buf || [];
-	
-	  options = options || {};
-	
-	  var clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq;
-	
-	  // UUID timestamps are 100 nano-second units since the Gregorian epoch,
-	  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
-	  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
-	  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
-	  var msecs = options.msecs !== undefined ? options.msecs : new Date().getTime();
-	
-	  // Per 4.2.1.2, use count of uuid's generated during the current clock
-	  // cycle to simulate higher resolution clock
-	  var nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
-	
-	  // Time since last uuid creation (in msecs)
-	  var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
-	
-	  // Per 4.2.1.2, Bump clockseq on clock regression
-	  if (dt < 0 && options.clockseq === undefined) {
-	    clockseq = clockseq + 1 & 0x3fff;
-	  }
-	
-	  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
-	  // time interval
-	  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
-	    nsecs = 0;
-	  }
-	
-	  // Per 4.2.1.2 Throw error if too many uuids are requested
-	  if (nsecs >= 10000) {
-	    throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
-	  }
-	
-	  _lastMSecs = msecs;
-	  _lastNSecs = nsecs;
-	  _clockseq = clockseq;
-	
-	  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
-	  msecs += 12219292800000;
-	
-	  // `time_low`
-	  var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
-	  b[i++] = tl >>> 24 & 0xff;
-	  b[i++] = tl >>> 16 & 0xff;
-	  b[i++] = tl >>> 8 & 0xff;
-	  b[i++] = tl & 0xff;
-	
-	  // `time_mid`
-	  var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
-	  b[i++] = tmh >>> 8 & 0xff;
-	  b[i++] = tmh & 0xff;
-	
-	  // `time_high_and_version`
-	  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
-	  b[i++] = tmh >>> 16 & 0xff;
-	
-	  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
-	  b[i++] = clockseq >>> 8 | 0x80;
-	
-	  // `clock_seq_low`
-	  b[i++] = clockseq & 0xff;
-	
-	  // `node`
-	  var node = options.node || _nodeId;
-	  for (var n = 0; n < 6; n++) {
-	    b[i + n] = node[n];
-	  }
-	
-	  return buf ? buf : unparse(b);
-	}
-	
-	// **`v4()` - Generate random UUID**
-	
-	// See https://github.com/broofa/node-uuid for API details
-	function v4(options, buf, offset) {
-	  // Deprecated - 'format' argument, as supported in v1.2
-	  var i = buf && offset || 0;
-	
-	  if (typeof(options) == 'string') {
-	    buf = options == 'binary' ? new Array(16) : null;
-	    options = null;
-	  }
-	  options = options || {};
-	
-	  var rnds = options.random || (options.rng || _rng)();
-	
-	  // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
-	  rnds[6] = (rnds[6] & 0x0f) | 0x40;
-	  rnds[8] = (rnds[8] & 0x3f) | 0x80;
-	
-	  // Copy bytes to buffer, if provided
-	  if (buf) {
-	    for (var ii = 0; ii < 16; ii++) {
-	      buf[i + ii] = rnds[ii];
-	    }
-	  }
-	
-	  return buf || unparse(rnds);
-	}
-	
-	// Export public API
-	var uuid = v4;
-	uuid.v1 = v1;
-	uuid.v4 = v4;
-	uuid.parse = parse;
-	uuid.unparse = unparse;
-	
-	module.exports = uuid;
-
-
-/***/ },
-/* 322 */
-/***/ function(module, exports) {
-
-	/* WEBPACK VAR INJECTION */(function(global) {
-	var rng;
-	
-	if (global.crypto && crypto.getRandomValues) {
-	  // WHATWG crypto-based RNG - http://wiki.whatwg.org/wiki/Crypto
-	  // Moderately fast, high quality
-	  var _rnds8 = new Uint8Array(16);
-	  rng = function whatwgRNG() {
-	    crypto.getRandomValues(_rnds8);
-	    return _rnds8;
-	  };
-	}
-	
-	if (!rng) {
-	  // Math.random()-based (RNG)
-	  //
-	  // If all else fails, use Math.random().  It's fast, but is of unspecified
-	  // quality.
-	  var  _rnds = new Array(16);
-	  rng = function() {
-	    for (var i = 0, r; i < 16; i++) {
-	      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
-	      _rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
-	    }
-	
-	    return _rnds;
-	  };
-	}
-	
-	module.exports = rng;
-	
-	
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
-
-/***/ },
-/* 323 */
-/***/ function(module, exports) {
-
-	module.exports = function (context, execution) {
-	  execution.signal.payload = execution.payload
-	  return context
-	}
-
-
-/***/ },
-/* 324 */
-/***/ function(module, exports) {
-
-	/*
-	  ## Used by Recorder and SignalStore to replay signals
-	  Should evaluate how signals are replayed. Sometimes you want
-	  to actually run the signals again (recorder)
-	*/
-	module.exports = function (context, execution, controller) {
-	  var model = controller.getModel()
-	  var action = execution.action
-	  action.mutations = action.mutations || []
-	
-	  return Object.keys(context).reduce(function (newContext, key) {
-	    newContext[key] = context[key]
-	    if (key === 'state') {
-	      Object.keys(model.mutators).forEach(function (mutatorKey) {
-	        var originalMutator = context[key][mutatorKey]
-	        newContext[key][mutatorKey] = function () {
-	          var args = [].slice.call(arguments)
-	          var path = args.shift()
-	          action.mutations.push({
-	            name: mutatorKey,
-	            path: typeof path === 'string' ? path.split('.') : path,
-	            args: args
-	          })
-	          originalMutator.apply(null, arguments)
-	        }
-	      })
-	    }
-	
-	    return newContext
-	  }, {})
-	}
-
-
-/***/ },
-/* 325 */
-/***/ function(module, exports) {
-
-	/* WEBPACK VAR INJECTION */(function(global) {module.exports = {
-	  hasLocalStorage: function () {
-	    return typeof global.localStorage !== 'undefined'
-	  },
-	  debounce: function debounce (func, wait, immediate) {
-	    var timeout
-	    return function () {
-	      var context = this
-	      var args = arguments
-	      var later = function () {
-	        timeout = null
-	        if (!immediate) func.apply(context, args)
-	      }
-	      var callNow = immediate && !timeout
-	      clearTimeout(timeout)
-	      timeout = setTimeout(later, wait)
-	      if (callNow) func.apply(context, args)
-	    }
-	  }
-	}
-	
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
-
-/***/ },
-/* 326 */
-/***/ function(module, exports) {
-
-	var convertServices = function (action, path, modulesPaths, services) {
-	  return Object.keys(services).reduce(function (newservices, key) {
-	    path.push(key)
-	    if (
-	      typeof services[key] === 'function' &&
-	      services[key].constructor.name === 'Function' &&
-	      !Object.keys(services[key]).length &&
-	      (!services[key].prototype || !Object.keys(services[key].prototype).length)
-	    ) {
-	      var servicePath = path.slice()
-	      var method = servicePath.pop()
-	      newservices[key] = function () {
-	        action.serviceCalls.push({
-	          name: servicePath.join('.'),
-	          method: method,
-	          args: [].slice.call(arguments)
-	        })
-	        return services[key].apply(this, arguments)
-	      }
-	    } else if (
-	      typeof services[key] === 'object' &&
-	      !Array.isArray(services[key]) &&
-	      services[key] !== null &&
-	      modulesPaths.indexOf(path.join('.')) >= 0
-	    ) {
-	      newservices[key] = convertServices(action, path, modulesPaths, services[key])
-	    } else {
-	      newservices[key] = services[key]
-	    }
-	    path.pop(key)
-	    return newservices
-	  }, {})
-	}
-	
-	module.exports = function (context, execution, controller) {
-	  var action = execution.action
-	  var modules = controller.getModules()
-	  var services = controller.getServices()
-	  var path = []
-	  action.serviceCalls = action.serviceCalls || []
-	  context.services = convertServices(action, path, Object.keys(modules), services)
-	
-	  return context
-	}
-
-
-/***/ },
-/* 327 */
-/***/ function(module, exports) {
-
-	module.exports = function (context, execution) {
-	  var originalOutput = context.output
-	  var outputPaths = Object.keys(context.output)
-	  var output = function () {
-	    var path = typeof arguments[0] === 'string' ? arguments[0] : null
-	    var payload = path ? arguments[1] : arguments[0]
-	    execution.action.output = payload
-	    originalOutput.apply(null, arguments)
-	  }
-	
-	  outputPaths.reduce(function (output, key) {
-	    output[key] = function () {
-	      execution.action.output = arguments[0] || {}
-	      originalOutput[key].apply(null, arguments)
-	    }
-	    return output
-	  }, output)
-	
-	  context.output = output
-	
-	  return context
-	}
-
-
-/***/ },
-/* 328 */
-/***/ function(module, exports) {
-
-	module.exports = function (context, execution) {
-	  execution.action.input = execution.payload
-	  return context
-	}
-
-
-/***/ },
-/* 329 */
-/***/ function(module, exports) {
-
-	module.exports = function (context, execution) {
-	  execution.signal.isRecorded = execution.options.isRecorded
-	  execution.signal.isRouted = execution.options.isRouted
-	  return context
-	}
-
-
-/***/ },
-/* 330 */
-/***/ function(module, exports, __webpack_require__) {
-
 	var MODULE = 'cerebral-module-router'
-	var isObject = __webpack_require__(331)
-	var get = __webpack_require__(263)
+	var isObject = __webpack_require__(267)
+	var get = __webpack_require__(182)
 	
-	var Mapper = __webpack_require__(332)
+	var Mapper = __webpack_require__(268)
 	var addressbar
 	try {
-	  addressbar = __webpack_require__(338)
+	  addressbar = __webpack_require__(274)
 	} catch (e) {
 	  addressbar = {
 	    pathname: '/',
@@ -32482,7 +29763,7 @@
 
 
 /***/ },
-/* 331 */
+/* 267 */
 /***/ function(module, exports) {
 
 	/**
@@ -32525,12 +29806,12 @@
 
 
 /***/ },
-/* 332 */
+/* 268 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict'
-	var mapper = __webpack_require__(333)
-	var compileRoute = __webpack_require__(334)
+	var mapper = __webpack_require__(269)
+	var compileRoute = __webpack_require__(270)
 	
 	module.exports = function urlMapper (options) {
 	  return mapper(compileRoute, options)
@@ -32538,7 +29819,7 @@
 
 
 /***/ },
-/* 333 */
+/* 269 */
 /***/ function(module, exports) {
 
 	module.exports = function mapper (compileFn, options) {
@@ -32591,12 +29872,12 @@
 
 
 /***/ },
-/* 334 */
+/* 270 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict'
-	var URLON = __webpack_require__(335)
-	var pathToRegexp = __webpack_require__(336)
+	var URLON = __webpack_require__(271)
+	var pathToRegexp = __webpack_require__(272)
 	
 	function compileRoute (route, options) {
 	  var re
@@ -32682,7 +29963,7 @@
 
 
 /***/ },
-/* 335 */
+/* 271 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var URLON = {
@@ -32811,10 +30092,10 @@
 
 
 /***/ },
-/* 336 */
+/* 272 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var isarray = __webpack_require__(337)
+	var isarray = __webpack_require__(273)
 	
 	/**
 	 * Expose `pathToRegexp`.
@@ -33207,7 +30488,7 @@
 
 
 /***/ },
-/* 337 */
+/* 273 */
 /***/ function(module, exports) {
 
 	module.exports = Array.isArray || function (arr) {
@@ -33216,13 +30497,13 @@
 
 
 /***/ },
-/* 338 */
+/* 274 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/* global history */
 	
-	var URL = __webpack_require__(339)
-	var EventEmitter = __webpack_require__(228).EventEmitter
+	var URL = __webpack_require__(275)
+	var EventEmitter = __webpack_require__(238).EventEmitter
 	var instance = null
 	
 	// Check if IE history polyfill is added
@@ -33443,14 +30724,14 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 339 */
+/* 275 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var required = __webpack_require__(340)
-	  , lolcation = __webpack_require__(341)
-	  , qs = __webpack_require__(342)
+	var required = __webpack_require__(276)
+	  , lolcation = __webpack_require__(277)
+	  , qs = __webpack_require__(278)
 	  , relativere = /^\/(?!\/)/
 	  , protocolre = /^([a-z0-9.+-]+:)?(\/\/)?(.*)$/i; // actual protocol is first match
 	
@@ -33718,7 +30999,7 @@
 
 
 /***/ },
-/* 340 */
+/* 276 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -33762,7 +31043,7 @@
 
 
 /***/ },
-/* 341 */
+/* 277 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {'use strict';
@@ -33794,7 +31075,7 @@
 	 */
 	module.exports = function lolcation(loc) {
 	  loc = loc || global.location || {};
-	  URL = URL || __webpack_require__(339);
+	  URL = URL || __webpack_require__(275);
 	
 	  var finaldestination = {}
 	    , type = typeof loc
@@ -33822,7 +31103,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 342 */
+/* 278 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -33887,6 +31168,2739 @@
 	exports.stringify = querystringify;
 	exports.parse = querystring;
 
+
+/***/ },
+/* 279 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/* eslint-env browser*/
+	var SignalStore = __webpack_require__(280)
+	var utils = __webpack_require__(285)
+	var requestAnimationFrame = requestAnimationFrame || function (cb) { setTimeout(cb) }
+	
+	module.exports = function Devtools () {
+	  if (typeof window === 'undefined') { return function () {} }
+	  if (typeof window.chrome === 'undefined') { return function () {} }
+	
+	  return function init (module, controller) {
+	    if (controller.addContextProvider) {
+	      controller.addContextProvider(__webpack_require__(286))
+	      controller.addContextProvider(__webpack_require__(287))
+	      controller.addContextProvider(__webpack_require__(288))
+	      controller.addContextProvider(__webpack_require__(289))
+	    }
+	
+	    module.addModules({
+	      store: SignalStore()
+	    })
+	
+	    module.addSignals({
+	      modelChanged: [
+	        function changeModel (arg) {
+	          arg.state.set(arg.input.path, arg.input.value)
+	        }
+	      ]
+	    })
+	
+	    var signalStore = controller.getServices()[module.name].store
+	
+	    var isInitialized = false
+	    var hasInitialPayload = false
+	    var disableDebugger = false
+	    var willKeepState = false
+	    var APP_ID = String(Date.now())
+	    var VERSION = 'v3'
+	    var isAwaitingFrame = false
+	    var nextSignalInLine = 0
+	
+	    var hasExecutingSignal = function (signal) {
+	      function traverseSignals (signals) {
+	        return signals.reduce(function (hasExecutingSignal, signal) {
+	          if (hasExecutingSignal || signal.isExecuting) {
+	            return true
+	          }
+	
+	          return traverseChain(signal.branches)
+	        }, false)
+	      }
+	
+	      function traverseChain (chain) {
+	        return chain.reduce(function (hasExecutingSignal, action) {
+	          if (hasExecutingSignal) {
+	            return true
+	          }
+	
+	          if (Array.isArray(action)) {
+	            return traverseChain(action)
+	          }
+	
+	          return traverseAction(action)
+	        }, false)
+	      }
+	
+	      function traverseAction (action) {
+	        var hasExecutingSignal = false
+	        if (action.outputPath) {
+	          hasExecutingSignal = traverseChain(action.outputs[action.outputPath])
+	        }
+	        if (action.signals) {
+	          hasExecutingSignal = hasExecutingSignal || traverseSignals(action.signals)
+	        }
+	        return hasExecutingSignal
+	      }
+	
+	      if (signal.isExecuting) {
+	        return true
+	      }
+	
+	      return traverseChain(signal.branches)
+	    }
+	
+	    var getOldestExecutingSignalIndex = function (signals, fromIndex) {
+	      for (var x = fromIndex; x < signals.length; x++) {
+	        if (hasExecutingSignal(signals[x])) {
+	          return x
+	        }
+	      }
+	      return signals.length - 1
+	    }
+	
+	    var update = function (signalType, data, forceUpdate) {
+	      if (!forceUpdate && (disableDebugger || !data || !hasInitialPayload)) {
+	        return
+	      }
+	
+	      var detail = {
+	        type: signalType,
+	        app: APP_ID,
+	        version: VERSION,
+	        data: data
+	      }
+	
+	      var event = new CustomEvent('cerebral.dev.update', {
+	        detail: JSON.stringify(detail)
+	      })
+	      window.dispatchEvent(event)
+	    }
+	
+	    var getInit = function () {
+	      var signals = signalStore.getSignals()
+	      nextSignalInLine = signals.length ? getOldestExecutingSignalIndex(signals, nextSignalInLine) : 0
+	      hasInitialPayload = true
+	      return {
+	        initialModel: controller.get(),
+	        signals: signals,
+	        willKeepState: willKeepState,
+	        disableDebugger: disableDebugger,
+	        isExecutingAsync: signalStore.isExecutingAsync()
+	      }
+	    }
+	
+	    var updateSignals = function () {
+	      if (isAwaitingFrame) {
+	        return
+	      }
+	
+	      isAwaitingFrame = true
+	      requestAnimationFrame(function () {
+	        var signals = signalStore.getSignals()
+	
+	        // In case last executed signal is now done
+	        update('signals', {
+	          signals: signals.slice(nextSignalInLine),
+	          isExecutingAsync: signalStore.isExecutingAsync()
+	        })
+	
+	        // Set new last executed signal
+	        nextSignalInLine = signals.length ? getOldestExecutingSignalIndex(signals, nextSignalInLine) : 0
+	        isAwaitingFrame = false
+	      })
+	    }
+	
+	    var updateSettings = function () {
+	      update('settings', {
+	        willKeepState: willKeepState,
+	        disableDebugger: disableDebugger
+	      }, true)
+	    }
+	
+	    window.addEventListener('cerebral.dev.debuggerPing', function () {
+	      var signals = []
+	
+	      if (utils.hasLocalStorage()) {
+	        disableDebugger = JSON.parse(localStorage.getItem('cerebral_disable_debugger'))
+	        signals = JSON.parse(localStorage.getItem('cerebral_signals')) || []
+	        willKeepState = JSON.parse(localStorage.getItem('cerebral_willKeepState'))
+	      }
+	
+	      // Might be an async signal running here
+	      if (willKeepState && signalStore.isExecutingAsync()) {
+	        controller.once('signalEnd', function () {
+	          signalStore.setSignals(signals)
+	          signalStore.remember(signalStore.getSignals().length - 1)
+	          isInitialized = true
+	          var event = new CustomEvent('cerebral.dev.cerebralPong', {
+	            detail: JSON.stringify({
+	              type: 'init',
+	              app: APP_ID,
+	              version: VERSION,
+	              data: getInit()
+	            })
+	          })
+	          window.dispatchEvent(event)
+	        })
+	      } else {
+	        signalStore.setSignals(signals)
+	        signalStore.rememberInitial(signalStore.getSignals().length - 1)
+	        isInitialized = true
+	        var event = new CustomEvent('cerebral.dev.cerebralPong', {
+	          detail: JSON.stringify({
+	            type: 'init',
+	            app: APP_ID,
+	            version: VERSION,
+	            data: getInit()
+	          })
+	        })
+	        window.dispatchEvent(event)
+	      }
+	    })
+	
+	    window.addEventListener('cerebral.dev.toggleKeepState', function () {
+	      willKeepState = !willKeepState
+	      updateSettings()
+	    })
+	
+	    window.addEventListener('cerebral.dev.toggleDisableDebugger', function () {
+	      disableDebugger = !disableDebugger
+	      if (disableDebugger && willKeepState) {
+	        willKeepState = !willKeepState
+	      }
+	      updateSettings()
+	    })
+	
+	    window.addEventListener('cerebral.dev.resetStore', function () {
+	      signalStore.reset()
+	      controller.emit('change')
+	      update()
+	    })
+	
+	    window.addEventListener('cerebral.dev.remember', function (event) {
+	      signalStore.remember(event.detail)
+	    })
+	
+	    window.addEventListener('cerebral.dev.rewrite', function (event) {
+	      var signals = signalStore.getSignals()
+	      signals.splice(event.detail + 1, signals.length - 1 - event.detail)
+	      signalStore.remember(event.detail)
+	    })
+	
+	    window.addEventListener('cerebral.dev.logPath', function (event) {
+	      var name = event.detail.name
+	      var value = controller.get(event.detail.path)
+	      // toValue instead?
+	      console.log('CEREBRAL - ' + name + ':', value.toJS ? value.toJS() : value)
+	    })
+	
+	    window.addEventListener('cerebral.dev.logModel', function (event) {
+	      console.log('CEREBRAL - model:', controller.logModel())
+	    })
+	
+	    window.addEventListener('cerebral.dev.changeModel', function (event) {
+	      module.getSignals().modelChanged(event.detail)
+	    })
+	
+	    window.addEventListener('unload', function () {
+	      signalStore.removeRunningSignals()
+	
+	      if (utils.hasLocalStorage()) {
+	        localStorage.setItem('cerebral_signals', isInitialized && willKeepState ? JSON.stringify(signalStore.getSignals()) : JSON.stringify([]))
+	        localStorage.setItem('cerebral_willKeepState', isInitialized && JSON.stringify(willKeepState))
+	        localStorage.setItem('cerebral_disable_debugger', isInitialized && JSON.stringify(disableDebugger))
+	      }
+	    })
+	
+	    document.addEventListener('visibilitychange', function () {
+	      if (!document.hidden) {
+	        updateSettings()
+	      }
+	    })
+	
+	    var services = {
+	      update: update,
+	      start: function () {
+	        console.warn('Cerebral: devtools.start() method is deprecated. Devtools has started automatically.')
+	      }
+	    }
+	
+	    module.addServices(services)
+	
+	    controller.getDevtools = function () {
+	      console.warn('Cerebral: controller.getDevtools() method is deprecated. Please upgrade your view package to latest version.')
+	      return services
+	    }
+	
+	    function start () {
+	      if (window.__CEREBRAL_DEVTOOLS_GLOBAL_HOOK__) {
+	        window.__CEREBRAL_DEVTOOLS_GLOBAL_HOOK__.signals = controller.getSignals()
+	      }
+	
+	      var event = new CustomEvent('cerebral.dev.cerebralPing')
+	      window.dispatchEvent(event)
+	
+	      console.assert(controller.listeners('modulesLoaded')[0] === start, 'Cerebral devtools: Please do not place any listeners to `modulesLoaded` event before devtools\'s one.')
+	    }
+	
+	    var listeners = controller.listeners('modulesLoaded')
+	    controller.removeAllListeners('modulesLoaded')
+	
+	    controller.on('modulesLoaded', start)
+	    listeners.forEach(function (listener) {
+	      controller.on('modulesLoaded', listener)
+	    })
+	
+	    controller.on('change', updateSignals)
+	  }
+	}
+
+
+/***/ },
+/* 280 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	  SignalStore will keep track of all signals triggered. It keeps an array of signals with
+	  actions and mutations related to that signal. It will also track any async signals processing. The SignalStore
+	  is able to reset state and travel to a "specific point in time" by playing back the signals up to a certain
+	  signal.
+	*/
+	var uuid = __webpack_require__(281)
+	
+	module.exports = function SignalStore () {
+	  return function (module, controller) {
+	    var signals = []
+	    var isRemembering = false
+	    var currentIndex = signals.length - 1
+	    var hasRememberedInitial = false
+	    var asyncActionsRunning = []
+	
+	    if (controller.addContextProvider) {
+	      controller.addContextProvider(__webpack_require__(283))
+	      controller.addContextProvider(__webpack_require__(284))
+	    }
+	
+	    var addAsyncAction = function (action) {
+	      asyncActionsRunning.push(action)
+	    }
+	
+	    var removeAsyncAction = function (action) {
+	      asyncActionsRunning.splice(asyncActionsRunning.indexOf(action), 1)
+	    }
+	
+	    var addSignal = function (signal, options) {
+	      options = options || {}
+	
+	      if (!isRemembering) {
+	        signal.signalStoreRef = uuid.v4()
+	
+	        if (asyncActionsRunning.length) {
+	          var currentAction = asyncActionsRunning[asyncActionsRunning.length - 1]
+	          currentAction.signals = currentAction.signals || []
+	          currentAction.signals.push(signal)
+	        } else {
+	          currentIndex++
+	          signals.push(signal)
+	        }
+	      }
+	    }
+	
+	    var services = {
+	      // This is used when loading up the app and producing the last known state
+	      rememberNow: function () {
+	        if (!signals.length) {
+	          return
+	        }
+	
+	        currentIndex = signals.length - 1
+	        this.remember(currentIndex)
+	      },
+	
+	      // Will reset the SignalStore
+	      reset: function () {
+	        if (!isRemembering) {
+	          signals = []
+	
+	          currentIndex = -1
+	
+	          controller.emit('reset')
+	        }
+	      },
+	
+	      rememberInitial: function (index) {
+	        // Both router and debugger might try to do initial remembering
+	        if (hasRememberedInitial) {
+	          return
+	        }
+	
+	        hasRememberedInitial = true
+	        this.remember(index)
+	      },
+	
+	      remember: function (index) {
+	        // Flag that we are remembering
+	        isRemembering = true
+	        controller.emit('reset')
+	
+	        // If going back to initial state, just return and update
+	        if (index === -1) {
+	          currentIndex = index
+	          isRemembering = false
+	        } else {
+	          // Start from beginning
+	          currentIndex = -1
+	
+	          // Go through signals
+	          try {
+	            for (var x = 0; x <= index; x++) {
+	              var signal = signals[x]
+	              if (!signal) {
+	                break
+	              }
+	
+	              // Trigger signal and then set what has become the current signal
+	              var signalMethodPath = signal.name.split('.').reduce(function (signals, key) {
+	                return signals[key]
+	              }, controller.getSignals())
+	              signalMethodPath(signal.payload || signal.input, {
+	                branches: signal.branches
+	              })
+	              currentIndex = x
+	            }
+	          } catch (e) {
+	            console.log(e.stack)
+	            console.warn('CEREBRAL - There was an error remembering state, it has been reset')
+	            this.reset()
+	          }
+	        }
+	
+	        controller.emit('change')
+	        isRemembering = false
+	      },
+	
+	      removeRunningSignals: function () {
+	        for (var x = 0; x < signals.length; x++) {
+	          if (signals[x].isExecuting) {
+	            signals.splice(x, 1)
+	            x--
+	          }
+	        }
+	      },
+	
+	      getSignals: function () {
+	        return signals
+	      },
+	
+	      setSignals: function (newSignals) {
+	        signals = signals.concat(newSignals)
+	      },
+	
+	      isExecutingAsync: function () {
+	        return !!asyncActionsRunning.length
+	      },
+	
+	      isRemembering: function () {
+	        return isRemembering
+	      },
+	
+	      getCurrentIndex: function () {
+	        return currentIndex
+	      }
+	    }
+	
+	    module.addServices(services)
+	    controller.getStore = function getStore () {
+	      console.warn('Cerebral: controller.getStore() method is deprecated.')
+	      return services
+	    }
+	
+	    controller.on('signalTrigger', function (event) {
+	      var signal = event.signal
+	
+	      if (!isRemembering && currentIndex !== -1 && currentIndex < signals.length - 1) {
+	        signal.preventSignalRun()
+	        console.warn('Cerebral - Looking in the past, ignored signal ' + signal.name)
+	      }
+	    })
+	    controller.on('signalStart', function (event) {
+	      if (!event.signal.isPrevented) addSignal(event.signal)
+	    })
+	    controller.on('actionStart', function (event) {
+	      var action = event.action
+	      if (action.isAsync) addAsyncAction(action)
+	    })
+	    controller.on('actionEnd', function (event) {
+	      var action = event.action
+	      if (action.isAsync) removeAsyncAction(action)
+	    })
+	  }
+	}
+
+
+/***/ },
+/* 281 */
+/***/ function(module, exports, __webpack_require__) {
+
+	//     uuid.js
+	//
+	//     Copyright (c) 2010-2012 Robert Kieffer
+	//     MIT License - http://opensource.org/licenses/mit-license.php
+	
+	// Unique ID creation requires a high quality random # generator.  We feature
+	// detect to determine the best RNG source, normalizing to a function that
+	// returns 128-bits of randomness, since that's what's usually required
+	var _rng = __webpack_require__(282);
+	
+	// Maps for number <-> hex string conversion
+	var _byteToHex = [];
+	var _hexToByte = {};
+	for (var i = 0; i < 256; i++) {
+	  _byteToHex[i] = (i + 0x100).toString(16).substr(1);
+	  _hexToByte[_byteToHex[i]] = i;
+	}
+	
+	// **`parse()` - Parse a UUID into it's component bytes**
+	function parse(s, buf, offset) {
+	  var i = (buf && offset) || 0, ii = 0;
+	
+	  buf = buf || [];
+	  s.toLowerCase().replace(/[0-9a-f]{2}/g, function(oct) {
+	    if (ii < 16) { // Don't overflow!
+	      buf[i + ii++] = _hexToByte[oct];
+	    }
+	  });
+	
+	  // Zero out remaining bytes if string was short
+	  while (ii < 16) {
+	    buf[i + ii++] = 0;
+	  }
+	
+	  return buf;
+	}
+	
+	// **`unparse()` - Convert UUID byte array (ala parse()) into a string**
+	function unparse(buf, offset) {
+	  var i = offset || 0, bth = _byteToHex;
+	  return  bth[buf[i++]] + bth[buf[i++]] +
+	          bth[buf[i++]] + bth[buf[i++]] + '-' +
+	          bth[buf[i++]] + bth[buf[i++]] + '-' +
+	          bth[buf[i++]] + bth[buf[i++]] + '-' +
+	          bth[buf[i++]] + bth[buf[i++]] + '-' +
+	          bth[buf[i++]] + bth[buf[i++]] +
+	          bth[buf[i++]] + bth[buf[i++]] +
+	          bth[buf[i++]] + bth[buf[i++]];
+	}
+	
+	// **`v1()` - Generate time-based UUID**
+	//
+	// Inspired by https://github.com/LiosK/UUID.js
+	// and http://docs.python.org/library/uuid.html
+	
+	// random #'s we need to init node and clockseq
+	var _seedBytes = _rng();
+	
+	// Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
+	var _nodeId = [
+	  _seedBytes[0] | 0x01,
+	  _seedBytes[1], _seedBytes[2], _seedBytes[3], _seedBytes[4], _seedBytes[5]
+	];
+	
+	// Per 4.2.2, randomize (14 bit) clockseq
+	var _clockseq = (_seedBytes[6] << 8 | _seedBytes[7]) & 0x3fff;
+	
+	// Previous uuid creation time
+	var _lastMSecs = 0, _lastNSecs = 0;
+	
+	// See https://github.com/broofa/node-uuid for API details
+	function v1(options, buf, offset) {
+	  var i = buf && offset || 0;
+	  var b = buf || [];
+	
+	  options = options || {};
+	
+	  var clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq;
+	
+	  // UUID timestamps are 100 nano-second units since the Gregorian epoch,
+	  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
+	  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
+	  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
+	  var msecs = options.msecs !== undefined ? options.msecs : new Date().getTime();
+	
+	  // Per 4.2.1.2, use count of uuid's generated during the current clock
+	  // cycle to simulate higher resolution clock
+	  var nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
+	
+	  // Time since last uuid creation (in msecs)
+	  var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
+	
+	  // Per 4.2.1.2, Bump clockseq on clock regression
+	  if (dt < 0 && options.clockseq === undefined) {
+	    clockseq = clockseq + 1 & 0x3fff;
+	  }
+	
+	  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
+	  // time interval
+	  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
+	    nsecs = 0;
+	  }
+	
+	  // Per 4.2.1.2 Throw error if too many uuids are requested
+	  if (nsecs >= 10000) {
+	    throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
+	  }
+	
+	  _lastMSecs = msecs;
+	  _lastNSecs = nsecs;
+	  _clockseq = clockseq;
+	
+	  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
+	  msecs += 12219292800000;
+	
+	  // `time_low`
+	  var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+	  b[i++] = tl >>> 24 & 0xff;
+	  b[i++] = tl >>> 16 & 0xff;
+	  b[i++] = tl >>> 8 & 0xff;
+	  b[i++] = tl & 0xff;
+	
+	  // `time_mid`
+	  var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
+	  b[i++] = tmh >>> 8 & 0xff;
+	  b[i++] = tmh & 0xff;
+	
+	  // `time_high_and_version`
+	  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
+	  b[i++] = tmh >>> 16 & 0xff;
+	
+	  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
+	  b[i++] = clockseq >>> 8 | 0x80;
+	
+	  // `clock_seq_low`
+	  b[i++] = clockseq & 0xff;
+	
+	  // `node`
+	  var node = options.node || _nodeId;
+	  for (var n = 0; n < 6; n++) {
+	    b[i + n] = node[n];
+	  }
+	
+	  return buf ? buf : unparse(b);
+	}
+	
+	// **`v4()` - Generate random UUID**
+	
+	// See https://github.com/broofa/node-uuid for API details
+	function v4(options, buf, offset) {
+	  // Deprecated - 'format' argument, as supported in v1.2
+	  var i = buf && offset || 0;
+	
+	  if (typeof(options) == 'string') {
+	    buf = options == 'binary' ? new Array(16) : null;
+	    options = null;
+	  }
+	  options = options || {};
+	
+	  var rnds = options.random || (options.rng || _rng)();
+	
+	  // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
+	  rnds[6] = (rnds[6] & 0x0f) | 0x40;
+	  rnds[8] = (rnds[8] & 0x3f) | 0x80;
+	
+	  // Copy bytes to buffer, if provided
+	  if (buf) {
+	    for (var ii = 0; ii < 16; ii++) {
+	      buf[i + ii] = rnds[ii];
+	    }
+	  }
+	
+	  return buf || unparse(rnds);
+	}
+	
+	// Export public API
+	var uuid = v4;
+	uuid.v1 = v1;
+	uuid.v4 = v4;
+	uuid.parse = parse;
+	uuid.unparse = unparse;
+	
+	module.exports = uuid;
+
+
+/***/ },
+/* 282 */
+/***/ function(module, exports) {
+
+	/* WEBPACK VAR INJECTION */(function(global) {
+	var rng;
+	
+	if (global.crypto && crypto.getRandomValues) {
+	  // WHATWG crypto-based RNG - http://wiki.whatwg.org/wiki/Crypto
+	  // Moderately fast, high quality
+	  var _rnds8 = new Uint8Array(16);
+	  rng = function whatwgRNG() {
+	    crypto.getRandomValues(_rnds8);
+	    return _rnds8;
+	  };
+	}
+	
+	if (!rng) {
+	  // Math.random()-based (RNG)
+	  //
+	  // If all else fails, use Math.random().  It's fast, but is of unspecified
+	  // quality.
+	  var  _rnds = new Array(16);
+	  rng = function() {
+	    for (var i = 0, r; i < 16; i++) {
+	      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
+	      _rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
+	    }
+	
+	    return _rnds;
+	  };
+	}
+	
+	module.exports = rng;
+	
+	
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
+
+/***/ },
+/* 283 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution) {
+	  execution.signal.payload = execution.payload
+	  return context
+	}
+
+
+/***/ },
+/* 284 */
+/***/ function(module, exports) {
+
+	/*
+	  ## Used by Recorder and SignalStore to replay signals
+	  Should evaluate how signals are replayed. Sometimes you want
+	  to actually run the signals again (recorder)
+	*/
+	module.exports = function (context, execution, controller) {
+	  var model = controller.getModel()
+	  var action = execution.action
+	  action.mutations = action.mutations || []
+	
+	  return Object.keys(context).reduce(function (newContext, key) {
+	    newContext[key] = context[key]
+	    if (key === 'state') {
+	      Object.keys(model.mutators).forEach(function (mutatorKey) {
+	        var originalMutator = context[key][mutatorKey]
+	        newContext[key][mutatorKey] = function () {
+	          var args = [].slice.call(arguments)
+	          var path = args.shift()
+	          action.mutations.push({
+	            name: mutatorKey,
+	            path: typeof path === 'string' ? path.split('.') : path,
+	            args: args
+	          })
+	          originalMutator.apply(null, arguments)
+	        }
+	      })
+	    }
+	
+	    return newContext
+	  }, {})
+	}
+
+
+/***/ },
+/* 285 */
+/***/ function(module, exports) {
+
+	/* WEBPACK VAR INJECTION */(function(global) {module.exports = {
+	  hasLocalStorage: function () {
+	    return typeof global.localStorage !== 'undefined'
+	  },
+	  debounce: function debounce (func, wait, immediate) {
+	    var timeout
+	    return function () {
+	      var context = this
+	      var args = arguments
+	      var later = function () {
+	        timeout = null
+	        if (!immediate) func.apply(context, args)
+	      }
+	      var callNow = immediate && !timeout
+	      clearTimeout(timeout)
+	      timeout = setTimeout(later, wait)
+	      if (callNow) func.apply(context, args)
+	    }
+	  }
+	}
+	
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
+
+/***/ },
+/* 286 */
+/***/ function(module, exports) {
+
+	var convertServices = function (action, path, modulesPaths, services) {
+	  return Object.keys(services).reduce(function (newservices, key) {
+	    path.push(key)
+	    if (
+	      typeof services[key] === 'function' &&
+	      services[key].constructor.name === 'Function' &&
+	      !Object.keys(services[key]).length &&
+	      (!services[key].prototype || !Object.keys(services[key].prototype).length)
+	    ) {
+	      var servicePath = path.slice()
+	      var method = servicePath.pop()
+	      newservices[key] = function () {
+	        action.serviceCalls.push({
+	          name: servicePath.join('.'),
+	          method: method,
+	          args: [].slice.call(arguments)
+	        })
+	        return services[key].apply(this, arguments)
+	      }
+	    } else if (
+	      typeof services[key] === 'object' &&
+	      !Array.isArray(services[key]) &&
+	      services[key] !== null &&
+	      modulesPaths.indexOf(path.join('.')) >= 0
+	    ) {
+	      newservices[key] = convertServices(action, path, modulesPaths, services[key])
+	    } else {
+	      newservices[key] = services[key]
+	    }
+	    path.pop(key)
+	    return newservices
+	  }, {})
+	}
+	
+	module.exports = function (context, execution, controller) {
+	  var action = execution.action
+	  var modules = controller.getModules()
+	  var services = controller.getServices()
+	  var path = []
+	  action.serviceCalls = action.serviceCalls || []
+	  context.services = convertServices(action, path, Object.keys(modules), services)
+	
+	  return context
+	}
+
+
+/***/ },
+/* 287 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution) {
+	  var originalOutput = context.output
+	  var outputPaths = Object.keys(context.output)
+	  var output = function () {
+	    var path = typeof arguments[0] === 'string' ? arguments[0] : null
+	    var payload = path ? arguments[1] : arguments[0]
+	    execution.action.output = payload
+	    originalOutput.apply(null, arguments)
+	  }
+	
+	  outputPaths.reduce(function (output, key) {
+	    output[key] = function () {
+	      execution.action.output = arguments[0] || {}
+	      originalOutput[key].apply(null, arguments)
+	    }
+	    return output
+	  }, output)
+	
+	  context.output = output
+	
+	  return context
+	}
+
+
+/***/ },
+/* 288 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution) {
+	  execution.action.input = execution.payload
+	  return context
+	}
+
+
+/***/ },
+/* 289 */
+/***/ function(module, exports) {
+
+	module.exports = function (context, execution) {
+	  execution.signal.isRecorded = execution.options.isRecorded
+	  execution.signal.isRouted = execution.options.isRouted
+	  return context
+	}
+
+
+/***/ },
+/* 290 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _NewTodo = __webpack_require__(291);
+	
+	var _NewTodo2 = _interopRequireDefault(_NewTodo);
+	
+	var _List = __webpack_require__(301);
+	
+	var _List2 = _interopRequireDefault(_List);
+	
+	var _Footer = __webpack_require__(321);
+	
+	var _Footer2 = _interopRequireDefault(_Footer);
+	
+	var _appMounted = __webpack_require__(328);
+	
+	var _appMounted2 = _interopRequireDefault(_appMounted);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = function () {
+	  return function (module, controller) {
+	    module.addModules({
+	      new: (0, _NewTodo2.default)(),
+	      list: (0, _List2.default)(),
+	      footer: (0, _Footer2.default)()
+	    });
+	
+	    module.addSignals({
+	      appMounted: _appMounted2.default
+	    });
+	
+	    controller.on('modulesLoaded', function () {
+	      controller.getSignals().app.appMounted({}, { immediate: true });
+	    });
+	  };
+	};
+
+/***/ },
+/* 291 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _submitted = __webpack_require__(292);
+	
+	var _submitted2 = _interopRequireDefault(_submitted);
+	
+	var _titleChanged = __webpack_require__(299);
+	
+	var _titleChanged2 = _interopRequireDefault(_titleChanged);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = function () {
+	  return function (module) {
+	    module.addState({
+	      title: '',
+	      isSaving: false
+	    });
+	
+	    module.addSignals({
+	      titleChanged: _titleChanged2.default,
+	      submitted: _submitted2.default
+	    });
+	  };
+	};
+
+/***/ },
+/* 292 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _add = __webpack_require__(293);
+	
+	var _add2 = _interopRequireDefault(_add);
+	
+	var _save = __webpack_require__(294);
+	
+	var _save2 = _interopRequireDefault(_save);
+	
+	var _setSaving = __webpack_require__(295);
+	
+	var _setSaving2 = _interopRequireDefault(_setSaving);
+	
+	var _unsetSaving = __webpack_require__(296);
+	
+	var _unsetSaving2 = _interopRequireDefault(_unsetSaving);
+	
+	var _updateTodo = __webpack_require__(297);
+	
+	var _updateTodo2 = _interopRequireDefault(_updateTodo);
+	
+	var _setError = __webpack_require__(298);
+	
+	var _setError2 = _interopRequireDefault(_setError);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_add2.default, _setSaving2.default, _save2.default, {
+	  success: [_updateTodo2.default],
+	  error: [_setError2.default]
+	}, _unsetSaving2.default];
+
+/***/ },
+/* 293 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function addTodo(_ref) {
+	  var state = _ref.state;
+	  var output = _ref.output;
+	  var services = _ref.services;
+	
+	  var ref = services.refs.next(state);
+	  var todo = {
+	    $ref: ref,
+	    $isSaving: true,
+	    title: state.get('app.new.title'),
+	    completed: false
+	  };
+	
+	  state.set('app.list.todos.' + ref, todo);
+	  state.set('app.new.title', '');
+	
+	  output({
+	    ref: ref
+	  });
+	}
+	
+	exports.default = addTodo;
+
+/***/ },
+/* 294 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function saveTodo(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	  var output = _ref.output;
+	  var services = _ref.services;
+	
+	  var todo = state.get('app.list.todos.' + input.ref);
+	
+	  services.http.post('/api/todos', todo).then(output.success).catch(output.error);
+	}
+	
+	saveTodo.async = true;
+	
+	exports.default = saveTodo;
+
+/***/ },
+/* 295 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setSaving(_ref) {
+	  var state = _ref.state;
+	
+	  state.set('app.new.isSaving', true);
+	}
+	
+	exports.default = setSaving;
+
+/***/ },
+/* 296 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function unsetSaving(_ref) {
+	  var state = _ref.state;
+	
+	  state.set('app.new.isSaving', false);
+	}
+	
+	exports.default = unsetSaving;
+
+/***/ },
+/* 297 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function updateTodo(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  state.merge('app.list.todos.' + input.ref, {
+	    '@id': input.result['@id'],
+	    $isSaving: false
+	  });
+	}
+	
+	exports.default = updateTodo;
+
+/***/ },
+/* 298 */
+/***/ function(module, exports) {
+
+	"use strict";
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setError(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  state.merge("app.list.todos." + input.ref, {
+	    id: input.result.id,
+	    $isSaving: false,
+	    $error: input.result.error
+	  });
+	}
+	
+	exports.default = setError;
+
+/***/ },
+/* 299 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _setTitle = __webpack_require__(300);
+	
+	var _setTitle2 = _interopRequireDefault(_setTitle);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = {
+	  chain: [_setTitle2.default],
+	  immediate: true
+	};
+
+/***/ },
+/* 300 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setTitle(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  state.set('app.new.title', input.title);
+	}
+	
+	exports.default = setTitle;
+
+/***/ },
+/* 301 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _newTitleChanged = __webpack_require__(302);
+	
+	var _newTitleChanged2 = _interopRequireDefault(_newTitleChanged);
+	
+	var _newTitleSubmitted = __webpack_require__(304);
+	
+	var _newTitleSubmitted2 = _interopRequireDefault(_newTitleSubmitted);
+	
+	var _removeTodoClicked = __webpack_require__(309);
+	
+	var _removeTodoClicked2 = _interopRequireDefault(_removeTodoClicked);
+	
+	var _todoDoubleClicked = __webpack_require__(313);
+	
+	var _todoDoubleClicked2 = _interopRequireDefault(_todoDoubleClicked);
+	
+	var _toggleAllChanged = __webpack_require__(315);
+	
+	var _toggleAllChanged2 = _interopRequireDefault(_toggleAllChanged);
+	
+	var _toggleCompletedChanged = __webpack_require__(318);
+	
+	var _toggleCompletedChanged2 = _interopRequireDefault(_toggleCompletedChanged);
+	
+	var _newTitleAborted = __webpack_require__(320);
+	
+	var _newTitleAborted2 = _interopRequireDefault(_newTitleAborted);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = function () {
+	  return function (module) {
+	    module.addState({
+	      todos: {},
+	      isAllChecked: false,
+	      editedTodo: null,
+	      showCompleted: true,
+	      showNotCompleted: true
+	    });
+	
+	    module.addSignals({
+	      newTitleChanged: _newTitleChanged2.default,
+	      newTitleSubmitted: _newTitleSubmitted2.default,
+	      removeTodoClicked: _removeTodoClicked2.default,
+	      todoDoubleClicked: _todoDoubleClicked2.default,
+	      toggleAllChanged: _toggleAllChanged2.default,
+	      toggleCompletedChanged: _toggleCompletedChanged2.default,
+	      newTitleAborted: _newTitleAborted2.default
+	    });
+	  };
+	};
+
+/***/ },
+/* 302 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _setTodoNewTitle = __webpack_require__(303);
+	
+	var _setTodoNewTitle2 = _interopRequireDefault(_setTodoNewTitle);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = {
+	  chain: [_setTodoNewTitle2.default],
+	  immediate: true
+	};
+
+/***/ },
+/* 303 */
+/***/ function(module, exports) {
+
+	"use strict";
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setTodoNewTitle(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  state.merge("app.list.todos." + input.ref, {
+	    $newTitle: input.title
+	  });
+	}
+	
+	exports.default = setTodoNewTitle;
+
+/***/ },
+/* 304 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _putTodo = __webpack_require__(305);
+	
+	var _putTodo2 = _interopRequireDefault(_putTodo);
+	
+	var _overwriteTodoTitle = __webpack_require__(306);
+	
+	var _overwriteTodoTitle2 = _interopRequireDefault(_overwriteTodoTitle);
+	
+	var _setPutError = __webpack_require__(307);
+	
+	var _setPutError2 = _interopRequireDefault(_setPutError);
+	
+	var _stopEditingTodo = __webpack_require__(308);
+	
+	var _stopEditingTodo2 = _interopRequireDefault(_stopEditingTodo);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_putTodo2.default, {
+	  success: [_overwriteTodoTitle2.default],
+	  error: [_setPutError2.default]
+	}, _stopEditingTodo2.default];
+
+/***/ },
+/* 305 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function putTodo(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	  var output = _ref.output;
+	  var services = _ref.services;
+	
+	  var todo = state.select('app.list.todos.' + input.ref);
+	  var url = todo.get('@id');
+	  var title = todo.get('$newTitle') || todo.get('title');
+	  var completed = input.completed || todo.get('completed');
+	  var todoObj = {
+	    title: title,
+	    completed: completed
+	  };
+	  services.http.put(url, todoObj).then(output.success).catch(output.error);
+	}
+	
+	putTodo.async = true;
+	
+	exports.default = putTodo;
+
+/***/ },
+/* 306 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function overwriteTodoTitle(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  var todo = state.select('app.list.todos.' + input.ref);
+	  todo.set('title', todo.get('$newTitle'));
+	}
+	
+	exports.default = overwriteTodoTitle;
+
+/***/ },
+/* 307 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setPutError(_ref) {
+	  var state = _ref.state;
+	
+	  state.set(['app.list.todos.$putError'], true);
+	}
+	
+	exports.default = setPutError;
+
+/***/ },
+/* 308 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function stopEditingTodo(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  var todo = state.select('app.list.todos.' + input.ref);
+	
+	  todo.merge({
+	    $isEditing: false
+	  });
+	  todo.unset('$newTitle');
+	}
+	
+	exports.default = stopEditingTodo;
+
+/***/ },
+/* 309 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _deleteTodo = __webpack_require__(310);
+	
+	var _deleteTodo2 = _interopRequireDefault(_deleteTodo);
+	
+	var _removeTodo = __webpack_require__(311);
+	
+	var _removeTodo2 = _interopRequireDefault(_removeTodo);
+	
+	var _setDeleteError = __webpack_require__(312);
+	
+	var _setDeleteError2 = _interopRequireDefault(_setDeleteError);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_deleteTodo2.default, {
+	  success: [_removeTodo2.default],
+	  error: [_setDeleteError2.default]
+	}];
+
+/***/ },
+/* 310 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function deleteTodo(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	  var output = _ref.output;
+	  var services = _ref.services;
+	
+	  var todo = state.select('app.list.todos.' + input.ref);
+	  var url = todo.get('@id');
+	  services.http.delete(url).then(output.success).catch(output.error);
+	}
+	
+	deleteTodo.async = true;
+	
+	exports.default = deleteTodo;
+
+/***/ },
+/* 311 */
+/***/ function(module, exports) {
+
+	"use strict";
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function removeTodo(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  state.unset("app.list.todos." + input.ref);
+	}
+	
+	exports.default = removeTodo;
+
+/***/ },
+/* 312 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setDeleteError(_ref) {
+	  var state = _ref.state;
+	
+	  state.set(['app.list.todos.$deleteError'], true);
+	}
+	
+	exports.default = setDeleteError;
+
+/***/ },
+/* 313 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _editTodo = __webpack_require__(314);
+	
+	var _editTodo2 = _interopRequireDefault(_editTodo);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_editTodo2.default];
+
+/***/ },
+/* 314 */
+/***/ function(module, exports) {
+
+	"use strict";
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function editTodo(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  var todo = state.get("app.list.todos." + input.ref);
+	
+	  state.merge("app.list.todos." + input.ref, {
+	    $isEditing: !todo.$isSaving
+	  });
+	}
+	
+	exports.default = editTodo;
+
+/***/ },
+/* 315 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _putToggleAll = __webpack_require__(316);
+	
+	var _putToggleAll2 = _interopRequireDefault(_putToggleAll);
+	
+	var _toggleAllChecked = __webpack_require__(317);
+	
+	var _toggleAllChecked2 = _interopRequireDefault(_toggleAllChecked);
+	
+	var _setPutError = __webpack_require__(307);
+	
+	var _setPutError2 = _interopRequireDefault(_setPutError);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_putToggleAll2.default, {
+	  success: [_toggleAllChecked2.default],
+	  error: [_setPutError2.default]
+	}];
+
+/***/ },
+/* 316 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function putToggleAll(_ref) {
+	  var state = _ref.state;
+	  var output = _ref.output;
+	  var services = _ref.services;
+	
+	  var completed = !state.get('app.list.isAllChecked');
+	  var todos = state.get('app.list.todos');
+	
+	  Object.keys(todos).forEach(function (ref) {
+	    var todo = state.select('app.list.todos.' + ref);
+	    var url = todo.get('@id');
+	    var todoObj = {
+	      title: todo.get('title'),
+	      completed: completed
+	    };
+	    services.http.put(url, todoObj).then(output.success).catch(output.error);
+	  });
+	}
+	
+	putToggleAll.async = true;
+	
+	exports.default = putToggleAll;
+
+/***/ },
+/* 317 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function toggleAllChecked(_ref) {
+	  var state = _ref.state;
+	
+	  var isCompleted = !state.get('app.list.isAllChecked');
+	  var todos = state.get('app.list.todos');
+	
+	  Object.keys(todos).forEach(function (key) {
+	    var todo = todos[key];
+	    state.set('app.list.todos.' + todo.$ref + '.completed', isCompleted);
+	  });
+	
+	  state.set('app.list.isAllChecked', isCompleted);
+	}
+	
+	exports.default = toggleAllChecked;
+
+/***/ },
+/* 318 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _putTodo = __webpack_require__(305);
+	
+	var _putTodo2 = _interopRequireDefault(_putTodo);
+	
+	var _toggleTodoCompleted = __webpack_require__(319);
+	
+	var _toggleTodoCompleted2 = _interopRequireDefault(_toggleTodoCompleted);
+	
+	var _setPutError = __webpack_require__(307);
+	
+	var _setPutError2 = _interopRequireDefault(_setPutError);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_putTodo2.default, {
+	  success: [_toggleTodoCompleted2.default],
+	  error: [_setPutError2.default]
+	}];
+
+/***/ },
+/* 319 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function toggleTodoCompleted(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  var todo = state.select('app.list.todos.' + input.ref);
+	  todo.set('completed', input.completed);
+	}
+	
+	exports.default = toggleTodoCompleted;
+
+/***/ },
+/* 320 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _stopEditingTodo = __webpack_require__(308);
+	
+	var _stopEditingTodo2 = _interopRequireDefault(_stopEditingTodo);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_stopEditingTodo2.default];
+
+/***/ },
+/* 321 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _clearCompletedClicked = __webpack_require__(322);
+	
+	var _clearCompletedClicked2 = _interopRequireDefault(_clearCompletedClicked);
+	
+	var _filterClicked = __webpack_require__(326);
+	
+	var _filterClicked2 = _interopRequireDefault(_filterClicked);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = function () {
+	  return function (module) {
+	    module.addState({
+	      filter: 'all'
+	    });
+	
+	    module.addSignals({
+	      clearCompletedClicked: _clearCompletedClicked2.default,
+	      filterClicked: _filterClicked2.default
+	    });
+	  };
+	};
+
+/***/ },
+/* 322 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _getCompleted = __webpack_require__(323);
+	
+	var _getCompleted2 = _interopRequireDefault(_getCompleted);
+	
+	var _deleteCompleted = __webpack_require__(324);
+	
+	var _deleteCompleted2 = _interopRequireDefault(_deleteCompleted);
+	
+	var _clearCompleted = __webpack_require__(325);
+	
+	var _clearCompleted2 = _interopRequireDefault(_clearCompleted);
+	
+	var _setDeleteError = __webpack_require__(312);
+	
+	var _setDeleteError2 = _interopRequireDefault(_setDeleteError);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_getCompleted2.default, _deleteCompleted2.default, {
+	  success: [_clearCompleted2.default],
+	  error: [_setDeleteError2.default]
+	}];
+
+/***/ },
+/* 323 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function getCompleted(_ref) {
+	  var state = _ref.state;
+	  var output = _ref.output;
+	
+	  var todos = state.get('app.list.todos');
+	  var completedTodos = [];
+	
+	  Object.keys(todos).forEach(function (key) {
+	    if (todos[key].completed && !todos[key].$isSaving) {
+	      var todo = state.select('app.list.todos.' + key);
+	      completedTodos.push(todo);
+	    }
+	  });
+	
+	  output({
+	    completedTodos: completedTodos
+	  });
+	}
+	
+	exports.default = getCompleted;
+
+/***/ },
+/* 324 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function deleteCompleted(_ref) {
+	  var input = _ref.input;
+	  var output = _ref.output;
+	  var services = _ref.services;
+	
+	  input.completedTodos.forEach(function (todo) {
+	    var url = todo.get('@id');
+	    services.http.delete(url).then(output.success).catch(output.error);
+	  });
+	}
+	
+	deleteCompleted.async = true;
+	
+	exports.default = deleteCompleted;
+
+/***/ },
+/* 325 */
+/***/ function(module, exports) {
+
+	"use strict";
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function clearCompleted(_ref) {
+	  var input = _ref.input;
+	
+	  input.completedTodos.forEach(function (todo) {
+	    todo.unset();
+	  });
+	}
+	
+	exports.default = clearCompleted;
+
+/***/ },
+/* 326 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _setFilter = __webpack_require__(327);
+	
+	var _setFilter2 = _interopRequireDefault(_setFilter);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_setFilter2.default];
+
+/***/ },
+/* 327 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setFilter(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	
+	  state.set('app.footer.filter', input.filter || 'all');
+	}
+	
+	exports.default = setFilter;
+
+/***/ },
+/* 328 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _setLoadingTodos = __webpack_require__(329);
+	
+	var _setLoadingTodos2 = _interopRequireDefault(_setLoadingTodos);
+	
+	var _getTodos = __webpack_require__(330);
+	
+	var _getTodos2 = _interopRequireDefault(_getTodos);
+	
+	var _setTodos = __webpack_require__(331);
+	
+	var _setTodos2 = _interopRequireDefault(_setTodos);
+	
+	var _setTodosError = __webpack_require__(332);
+	
+	var _setTodosError2 = _interopRequireDefault(_setTodosError);
+	
+	var _unsetLoadingTodos = __webpack_require__(333);
+	
+	var _unsetLoadingTodos2 = _interopRequireDefault(_unsetLoadingTodos);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	exports.default = [_setLoadingTodos2.default, _getTodos2.default, {
+	  success: [_setTodos2.default],
+	  error: [_setTodosError2.default]
+	}, _unsetLoadingTodos2.default];
+
+/***/ },
+/* 329 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setLoadingTodos(_ref) {
+	  var state = _ref.state;
+	
+	  state.set(['app.list.todos.isLoading'], true);
+	}
+	
+	exports.default = setLoadingTodos;
+
+/***/ },
+/* 330 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function getTodos(_ref) {
+	  var services = _ref.services;
+	  var output = _ref.output;
+	
+	  services.http.get('/api/todos').then(output.success).catch(output.error);
+	}
+	
+	getTodos.async = true;
+	
+	exports.default = getTodos;
+
+/***/ },
+/* 331 */
+/***/ function(module, exports) {
+
+	"use strict";
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setTodos(_ref) {
+	  var input = _ref.input;
+	  var state = _ref.state;
+	  var services = _ref.services;
+	
+	  input.result.todos.forEach(function (todo) {
+	    var ref = services.refs.next(state);
+	    todo.$ref = ref;
+	    todo.$isSaving = false;
+	
+	    state.set("app.list.todos." + ref, todo);
+	  });
+	}
+	
+	exports.default = setTodos;
+
+/***/ },
+/* 332 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function setTodosError(_ref) {
+	  var state = _ref.state;
+	
+	  state.set(['app.list.todos.$error'], true);
+	}
+	
+	exports.default = setTodosError;
+
+/***/ },
+/* 333 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	function unsetLoadingTodos(_ref) {
+	  var state = _ref.state;
+	
+	  state.set(['app.list.todos.isLoading'], false);
+	}
+	
+	exports.default = unsetLoadingTodos;
+
+/***/ },
+/* 334 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	exports.default = function () {
+	  return function (module) {
+	    module.alias('cerebral-module-refs');
+	
+	    module.addState({
+	      nextRef: 0
+	    });
+	
+	    module.addServices({
+	      next: function next(state) {
+	        var nextId = state.get([module.name, 'nextRef']);
+	        state.set([module.name, 'nextRef'], nextId + 1);
+	        return nextId;
+	      }
+	    });
+	  };
+	};
+
+/***/ },
+/* 335 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	
+	var _dec, _class;
+	
+	var _react = __webpack_require__(10);
+	
+	var _react2 = _interopRequireDefault(_react);
+	
+	var _cerebralViewReact = __webpack_require__(175);
+	
+	var _NewTodo = __webpack_require__(336);
+	
+	var _NewTodo2 = _interopRequireDefault(_NewTodo);
+	
+	var _List = __webpack_require__(337);
+	
+	var _List2 = _interopRequireDefault(_List);
+	
+	var _Footer = __webpack_require__(342);
+	
+	var _Footer2 = _interopRequireDefault(_Footer);
+	
+	var _visibleTodos = __webpack_require__(341);
+	
+	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+	
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+	
+	var App = (_dec = (0, _cerebralViewReact.Decorator)({
+	  todos: ['app', 'list', 'todos'],
+	  isLoading: ['app', 'list', 'todos', 'isLoading'],
+	  isSaving: ['app', 'new', 'isSaving'],
+	  visibleTodos: _visibleTodos2.default
+	}), _dec(_class = function (_React$Component) {
+	  _inherits(App, _React$Component);
+	
+	  function App() {
+	    _classCallCheck(this, App);
+	
+	    return _possibleConstructorReturn(this, Object.getPrototypeOf(App).apply(this, arguments));
+	  }
+	
+	  _createClass(App, [{
+	    key: 'render',
+	    value: function render() {
+	      return _react2.default.createElement(
+	        'div',
+	        { id: 'todoapp-wrapper' },
+	        _react2.default.createElement(
+	          'section',
+	          { className: 'todoapp' },
+	          _react2.default.createElement(
+	            'header',
+	            { className: 'header' },
+	            _react2.default.createElement(
+	              'h1',
+	              null,
+	              'todos'
+	            ),
+	            _react2.default.createElement(_NewTodo2.default, null)
+	          ),
+	          this.props.visibleTodos.length ? _react2.default.createElement(_List2.default, null) : null,
+	          Object.keys(this.props.todos).length ? _react2.default.createElement(_Footer2.default, null) : null
+	        ),
+	        _react2.default.createElement(
+	          'footer',
+	          { className: 'info' },
+	          _react2.default.createElement(
+	            'p',
+	            null,
+	            'Double-click to edit a todo'
+	          )
+	        )
+	      );
+	    }
+	  }]);
+	
+	  return App;
+	}(_react2.default.Component)) || _class);
+	
+	
+	module.exports = App;
+
+/***/ },
+/* 336 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	
+	var _dec, _class;
+	
+	var _react = __webpack_require__(10);
+	
+	var _react2 = _interopRequireDefault(_react);
+	
+	var _cerebralViewReact = __webpack_require__(175);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+	
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+	
+	var NewTodo = (_dec = (0, _cerebralViewReact.Decorator)({
+	  isSaving: ['app', 'new', 'isSaving'],
+	  title: ['app', 'new', 'title']
+	}), _dec(_class = function (_React$Component) {
+	  _inherits(NewTodo, _React$Component);
+	
+	  function NewTodo() {
+	    _classCallCheck(this, NewTodo);
+	
+	    return _possibleConstructorReturn(this, Object.getPrototypeOf(NewTodo).apply(this, arguments));
+	  }
+	
+	  _createClass(NewTodo, [{
+	    key: 'onFormSubmit',
+	    value: function onFormSubmit(event) {
+	      event.preventDefault();
+	      this.props.signals.app.new.submitted();
+	    }
+	  }, {
+	    key: 'onNewTodoTitleChange',
+	    value: function onNewTodoTitleChange(event) {
+	      this.props.signals.app.new.titleChanged({
+	        title: event.target.value
+	      });
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      var _this2 = this;
+	
+	      return _react2.default.createElement(
+	        'form',
+	        { id: 'todo-form', onSubmit: function onSubmit(e) {
+	            return _this2.onFormSubmit(e);
+	          } },
+	        _react2.default.createElement('input', {
+	          className: 'new-todo',
+	          autoComplete: 'off',
+	          placeholder: 'What needs to be done?',
+	          value: this.props.title,
+	          onChange: function onChange(e) {
+	            return _this2.onNewTodoTitleChange(e);
+	          }
+	        })
+	      );
+	    }
+	  }]);
+	
+	  return NewTodo;
+	}(_react2.default.Component)) || _class);
+	exports.default = NewTodo;
+
+/***/ },
+/* 337 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	
+	var _dec, _class;
+	
+	var _react = __webpack_require__(10);
+	
+	var _react2 = _interopRequireDefault(_react);
+	
+	var _Todo = __webpack_require__(338);
+	
+	var _Todo2 = _interopRequireDefault(_Todo);
+	
+	var _cerebralViewReact = __webpack_require__(175);
+	
+	var _isAllChecked = __webpack_require__(340);
+	
+	var _isAllChecked2 = _interopRequireDefault(_isAllChecked);
+	
+	var _visibleTodos = __webpack_require__(341);
+	
+	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+	
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+	
+	var List = (_dec = (0, _cerebralViewReact.Decorator)({
+	  isAllChecked: _isAllChecked2.default,
+	  todos: _visibleTodos2.default
+	}), _dec(_class = function (_React$Component) {
+	  _inherits(List, _React$Component);
+	
+	  function List() {
+	    _classCallCheck(this, List);
+	
+	    return _possibleConstructorReturn(this, Object.getPrototypeOf(List).apply(this, arguments));
+	  }
+	
+	  _createClass(List, [{
+	    key: 'renderTodo',
+	    value: function renderTodo(todo, index) {
+	      return _react2.default.createElement(_Todo2.default, { key: index, index: index, todo: todo });
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      var _this2 = this;
+	
+	      return _react2.default.createElement(
+	        'section',
+	        { className: 'main' },
+	        _react2.default.createElement('input', {
+	          className: 'toggle-all',
+	          type: 'checkbox',
+	          checked: this.props.isAllChecked,
+	          onChange: function onChange() {
+	            return _this2.props.signals.app.list.toggleAllChanged();
+	          }
+	        }),
+	        _react2.default.createElement(
+	          'label',
+	          { htmlFor: 'toggle-all' },
+	          'Mark all as complete'
+	        ),
+	        _react2.default.createElement(
+	          'ul',
+	          { className: 'todo-list' },
+	          this.props.todos.map(this.renderTodo.bind(this))
+	        )
+	      );
+	    }
+	  }]);
+	
+	  return List;
+	}(_react2.default.Component)) || _class);
+	exports.default = List;
+
+/***/ },
+/* 338 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	
+	var _dec, _class;
+	
+	var _react = __webpack_require__(10);
+	
+	var _react2 = _interopRequireDefault(_react);
+	
+	var _classnames = __webpack_require__(339);
+	
+	var _classnames2 = _interopRequireDefault(_classnames);
+	
+	var _cerebralViewReact = __webpack_require__(175);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+	
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+	
+	var Todo = (_dec = (0, _cerebralViewReact.Decorator)(), _dec(_class = function (_React$Component) {
+	  _inherits(Todo, _React$Component);
+	
+	  function Todo() {
+	    _classCallCheck(this, Todo);
+	
+	    return _possibleConstructorReturn(this, Object.getPrototypeOf(Todo).apply(this, arguments));
+	  }
+	
+	  _createClass(Todo, [{
+	    key: 'componentDidUpdate',
+	    value: function componentDidUpdate(prevProps) {
+	      if (!prevProps.todo.$isEditing && this.props.todo.$isEditing) {
+	        this.refs.edit.focus();
+	      }
+	    }
+	  }, {
+	    key: 'onNewTitleChange',
+	    value: function onNewTitleChange(event) {
+	      this.props.signals.app.list.newTitleChanged({
+	        ref: this.props.todo.$ref,
+	        title: event.target.value
+	      });
+	    }
+	  }, {
+	    key: 'onNewTitleSubmit',
+	    value: function onNewTitleSubmit(event) {
+	      event.preventDefault();
+	      this.props.signals.app.list.newTitleSubmitted({
+	        ref: this.props.todo.$ref
+	      });
+	    }
+	  }, {
+	    key: 'onCompletedToggle',
+	    value: function onCompletedToggle() {
+	      this.props.signals.app.list.toggleCompletedChanged({
+	        ref: this.props.todo.$ref,
+	        completed: !this.props.todo.completed
+	      });
+	    }
+	  }, {
+	    key: 'onRemoveClick',
+	    value: function onRemoveClick() {
+	      this.props.signals.app.list.removeTodoClicked({
+	        ref: this.props.todo.$ref
+	      });
+	    }
+	  }, {
+	    key: 'onNewTitleBlur',
+	    value: function onNewTitleBlur() {
+	      this.props.signals.app.list.newTitleAborted({
+	        ref: this.props.todo.$ref
+	      });
+	    }
+	  }, {
+	    key: 'edit',
+	    value: function edit() {
+	      var _this2 = this;
+	
+	      if (this.props.todo.$isSaving) {
+	        return;
+	      }
+	
+	      this.props.signals.app.list.todoDoubleClicked({
+	        ref: this.props.todo.$ref
+	      });
+	
+	      // FOCUS fix
+	      setTimeout(function () {
+	        var input = _this2.refs.edit;
+	        input.focus();
+	        input.value = input.value;
+	      }, 0);
+	    }
+	  }, {
+	    key: 'edit',
+	    value: function edit() {
+	      var _this3 = this;
+	
+	      if (this.props.todo.$isSaving) {
+	        return;
+	      }
+	
+	      this.props.signals.app.list.todoDoubleClicked({
+	        ref: this.props.todo.$ref
+	      });
+	
+	      // FOCUS fix
+	      setTimeout(function () {
+	        var input = _this3.refs.edit;
+	        input.focus();
+	        input.value = input.value;
+	      }, 0);
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      var _this4 = this;
+	
+	      var className = (0, _classnames2.default)({
+	        completed: this.props.todo.completed,
+	        editing: this.props.todo.$isEditing
+	      });
+	
+	      return _react2.default.createElement(
+	        'li',
+	        { className: className },
+	        _react2.default.createElement(
+	          'div',
+	          { className: 'view' },
+	          this.props.todo.$isSaving ? null : _react2.default.createElement('input', {
+	            className: 'toggle',
+	            type: 'checkbox',
+	            disabled: this.props.todo.$isSaving,
+	            onChange: function onChange() {
+	              return _this4.onCompletedToggle();
+	            },
+	            checked: this.props.todo.completed
+	          }),
+	          _react2.default.createElement(
+	            'label',
+	            { onDoubleClick: function onDoubleClick() {
+	                return _this4.edit();
+	              } },
+	            this.props.todo.title,
+	            ' ',
+	            this.props.todo.$isSaving ? _react2.default.createElement(
+	              'small',
+	              null,
+	              '(saving)'
+	            ) : null
+	          ),
+	          this.props.todo.$isSaving ? null : _react2.default.createElement('button', {
+	            className: 'destroy',
+	            onClick: function onClick() {
+	              return _this4.onRemoveClick();
+	            }
+	          })
+	        ),
+	        _react2.default.createElement(
+	          'form',
+	          { onSubmit: function onSubmit(e) {
+	              return _this4.onNewTitleSubmit(e);
+	            } },
+	          _react2.default.createElement('input', {
+	            ref: 'edit',
+	            className: 'edit',
+	            value: this.props.todo.$newTitle || this.props.todo.title,
+	            onBlur: function onBlur() {
+	              return _this4.onNewTitleBlur();
+	            },
+	            onChange: function onChange(e) {
+	              return _this4.onNewTitleChange(e);
+	            }
+	          })
+	        )
+	      );
+	    }
+	  }]);
+	
+	  return Todo;
+	}(_react2.default.Component)) || _class);
+	exports.default = Todo;
+
+/***/ },
+/* 339 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
+	  Copyright (c) 2016 Jed Watson.
+	  Licensed under the MIT License (MIT), see
+	  http://jedwatson.github.io/classnames
+	*/
+	/* global define */
+	
+	(function () {
+		'use strict';
+	
+		var hasOwn = {}.hasOwnProperty;
+	
+		function classNames () {
+			var classes = [];
+	
+			for (var i = 0; i < arguments.length; i++) {
+				var arg = arguments[i];
+				if (!arg) continue;
+	
+				var argType = typeof arg;
+	
+				if (argType === 'string' || argType === 'number') {
+					classes.push(arg);
+				} else if (Array.isArray(arg)) {
+					classes.push(classNames.apply(null, arg));
+				} else if (argType === 'object') {
+					for (var key in arg) {
+						if (hasOwn.call(arg, key) && arg[key]) {
+							classes.push(key);
+						}
+					}
+				}
+			}
+	
+			return classes.join(' ');
+		}
+	
+		if (typeof module !== 'undefined' && module.exports) {
+			module.exports = classNames;
+		} else if (true) {
+			// register as 'classnames', consistent with npm package name
+			!(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_RESULT__ = function () {
+				return classNames;
+			}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+		} else {
+			window.classNames = classNames;
+		}
+	}());
+
+
+/***/ },
+/* 340 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	exports.default = function (get) {
+	  var todos = get(_visibleTodos2.default);
+	
+	  return todos.filter(function (todo) {
+	    return !todo.completed;
+	  }).length === 0 && todos.length !== 0;
+	};
+	
+	var _visibleTodos = __webpack_require__(341);
+	
+	var _visibleTodos2 = _interopRequireDefault(_visibleTodos);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/***/ },
+/* 341 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	exports.default = function (get) {
+	  var todos = get(['app', 'list', 'todos']);
+	  var filter = get(['app', 'footer', 'filter']);
+	
+	  return Object.keys(todos).filter(function (key) {
+	    var todo = todos[key];
+	    return filter === 'all' || filter === 'completed' && todo.completed || filter === 'active' && !todo.completed;
+	  }).map(function (key) {
+	    return todos[key];
+	  });
+	};
+
+/***/ },
+/* 342 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	
+	var _dec, _class;
+	
+	var _react = __webpack_require__(10);
+	
+	var _react2 = _interopRequireDefault(_react);
+	
+	var _cerebralViewReact = __webpack_require__(175);
+	
+	var _counts = __webpack_require__(343);
+	
+	var _counts2 = _interopRequireDefault(_counts);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+	
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+	
+	var TodosFooter = (_dec = (0, _cerebralViewReact.Decorator)({
+	  filter: ['app', 'footer', 'filter'],
+	  counts: _counts2.default
+	}), _dec(_class = function (_React$Component) {
+	  _inherits(TodosFooter, _React$Component);
+	
+	  function TodosFooter() {
+	    _classCallCheck(this, TodosFooter);
+	
+	    return _possibleConstructorReturn(this, Object.getPrototypeOf(TodosFooter).apply(this, arguments));
+	  }
+	
+	  _createClass(TodosFooter, [{
+	    key: 'renderRemainingCount',
+	    value: function renderRemainingCount() {
+	      var count = this.props.counts.remainingCount;
+	      if (count === 0 || count > 1) {
+	        return count + ' items left';
+	      }
+	      return count + ' items left';
+	    }
+	  }, {
+	    key: 'renderRouteClass',
+	    value: function renderRouteClass(filter) {
+	      return this.props.filter === filter ? 'selected' : '';
+	    }
+	  }, {
+	    key: 'renderCompletedButton',
+	    value: function renderCompletedButton() {
+	      var _this2 = this;
+	
+	      return _react2.default.createElement(
+	        'button',
+	        { className: 'clear-completed', onClick: function onClick() {
+	            return _this2.props.signals.app.footer.clearCompletedClicked();
+	          } },
+	        'Clear completed (',
+	        this.props.counts.completedCount,
+	        ')'
+	      );
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      return _react2.default.createElement(
+	        'footer',
+	        { className: 'footer' },
+	        _react2.default.createElement(
+	          'span',
+	          { className: 'todo-count' },
+	          _react2.default.createElement(
+	            'strong',
+	            null,
+	            this.renderRemainingCount()
+	          )
+	        ),
+	        _react2.default.createElement(
+	          'ul',
+	          { className: 'filters' },
+	          _react2.default.createElement(
+	            'li',
+	            null,
+	            _react2.default.createElement(
+	              _cerebralViewReact.Link,
+	              { className: this.renderRouteClass('all'), signal: 'app.footer.filterClicked' },
+	              'All'
+	            )
+	          ),
+	          _react2.default.createElement(
+	            'li',
+	            null,
+	            _react2.default.createElement(
+	              _cerebralViewReact.Link,
+	              { className: this.renderRouteClass('active'), signal: 'app.footer.filterClicked', params: { filter: 'active' } },
+	              'Active'
+	            )
+	          ),
+	          _react2.default.createElement(
+	            'li',
+	            null,
+	            _react2.default.createElement(
+	              _cerebralViewReact.Link,
+	              { className: this.renderRouteClass('completed'), signal: 'app.footer.filterClicked', params: { filter: 'completed' } },
+	              'Completed'
+	            )
+	          )
+	        ),
+	        this.props.counts.completedCount ? this.renderCompletedButton() : null
+	      );
+	    }
+	  }]);
+	
+	  return TodosFooter;
+	}(_react2.default.Component)) || _class);
+	exports.default = TodosFooter;
+
+/***/ },
+/* 343 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	exports.default = function (get) {
+	  var todos = get(['app', 'list', 'todos']);
+	  var counts = Object.keys(todos).reduce(function (counts, key) {
+	    var todo = todos[key];
+	
+	    if (todo.completed) {
+	      counts.completedCount++;
+	    } else if (!todo.completed) {
+	      counts.remainingCount++;
+	    }
+	
+	    return counts;
+	  }, {
+	    completedCount: 0,
+	    remainingCount: 0
+	  });
+	
+	  return {
+	    remainingCount: counts.remainingCount,
+	    completedCount: counts.completedCount
+	  };
+	};
 
 /***/ }
 /******/ ]);
