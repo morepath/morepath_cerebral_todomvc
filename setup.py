@@ -1,17 +1,22 @@
 # -*- coding: utf-8 -*-
 
+import io
 from setuptools import setup, find_packages
 
 name = 'morepath_cerebral_todomvc'
 description = (
     'Morepath example of using React & Cerebral'
 )
+long_description = (
+    io.open('README.rst', encoding='utf-8').read() + '\n\n' +
+    io.open('CHANGES.rst', encoding='utf-8').read())
 version = '0.1.0'
 
 setup(
     name=name,
     version=version,
     description=description,
+    long_description=long_description,
     author='Henri Hulski',
     author_email='henri.hulski@gazeta.pl',
     license='MIT',
