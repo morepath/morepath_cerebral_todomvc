@@ -5,3 +5,8 @@ include *.rst
 global-exclude *.pyc
 global-exclude *.pyo
 global-exclude __pycache__/*
+include *.js
+include *.json
+include LICENSE
+recursive-include client *
+recursive-include static *
