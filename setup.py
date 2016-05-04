@@ -31,6 +31,7 @@ setup(
     extras_require=dict(
         test=[
             'pytest',
+            'pytest-cov',
             'webtest',
         ],
     ),
