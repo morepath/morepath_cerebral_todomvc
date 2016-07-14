@@ -1,13 +1,13 @@
-import Controller from 'cerebral';
-import Model from 'cerebral-model-baobab';
-import HttpModule from 'cerebral-module-http';
-import RouterModule from 'cerebral-module-router';
-import DevtoolsModule from 'cerebral-module-devtools';
+import Controller from 'cerebral'
+import Model from 'cerebral-model-baobab'
+import HttpModule from 'cerebral-module-http'
+import RouterModule from 'cerebral-module-router'
+import DevtoolsModule from 'cerebral-module-devtools'
 
-import AppModule from './modules/App';
-import RefsModule from './modules/Refs';
+import AppModule from './modules/App'
+import RefsModule from './modules/Refs'
 
-const controller = Controller(Model({}));
+const controller = Controller(Model({}))
 
 controller.addModules({
   app: AppModule(),
@@ -15,10 +15,10 @@ controller.addModules({
   http: HttpModule(),
   devtools: DevtoolsModule(),
   router: RouterModule({
-    '/': 'app.footer.filterClicked',
+    '/': 'app.footer.filterClicked'
   }, {
-    mapper: {query: true},
-  }),
-});
+    mapper: {query: true}
+  })
+})
 
-export default controller;
+export default controller

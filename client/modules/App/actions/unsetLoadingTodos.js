@@ -1,5 +1,5 @@
-function unsetLoadingTodos({state}) {
-  state.set(['app.list.todos.isLoading'], false);
+function unsetLoadingTodos ({state}) {
+  state.set(['app.list.todos.isLoading'], false)
 }
 
-export default unsetLoadingTodos;
+export default unsetLoadingTodos

@@ -1,9 +1,9 @@
-function getTodos({services, output}) {
+function getTodos ({services, output}) {
   services.http.get('/api/todos')
     .then(output.success)
-    .catch(output.error);
+    .catch(output.error)
 }
 
-getTodos.async = true;
+getTodos.async = true
 
-export default getTodos;
+export default getTodos

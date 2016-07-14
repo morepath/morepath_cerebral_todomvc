@@ -1,22 +1,22 @@
 export default function (get) {
-  const todos = get(['app', 'list', 'todos']);
+  const todos = get(['app', 'list', 'todos'])
   const counts = Object.keys(todos).reduce((counts, key) => {
-    const todo = todos[key];
+    const todo = todos[key]
 
     if (todo.completed) {
-      counts.completedCount++;
+      counts.completedCount++
     } else if (!todo.completed) {
-      counts.remainingCount++;
+      counts.remainingCount++
     }
 
-    return counts;
+    return counts
   }, {
     completedCount: 0,
-    remainingCount: 0,
-  });
+    remainingCount: 0
+  })
 
   return {
     remainingCount: counts.remainingCount,
-    completedCount: counts.completedCount,
-  };
+    completedCount: counts.completedCount
+  }
 }

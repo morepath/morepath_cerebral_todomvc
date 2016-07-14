@@ -1,122 +1,104 @@
-import React from 'react';
-import classNames from 'classnames';
-import {Decorator as Cerebral} from 'cerebral-view-react';
+import React from 'react'
+import classNames from 'classnames'
+import {Decorator as Cerebral} from 'cerebral-view-react'
 
 @Cerebral()
 class Todo extends React.Component {
-  componentDidUpdate(prevProps) {
+  componentDidUpdate (prevProps) {
     if (!prevProps.todo.$isEditing && this.props.todo.$isEditing) {
-      this.refs.edit.focus();
+      this.refs.edit.focus()
     }
   }
-  onNewTitleChange(event) {
+  onNewTitleChange (event) {
     this.props.signals.app.list.newTitleChanged({
       ref: this.props.todo.$ref,
-      title: event.target.value,
-    });
+      title: event.target.value
+    })
   }
-  onNewTitleSubmit(event) {
-    event.preventDefault();
+  onNewTitleSubmit (event) {
+    event.preventDefault()
     this.props.signals.app.list.newTitleSubmitted({
-      ref: this.props.todo.$ref,
-    });
+      ref: this.props.todo.$ref
+    })
   }
-  onCompletedToggle() {
+  onCompletedToggle () {
     this.props.signals.app.list.toggleCompletedChanged({
       ref: this.props.todo.$ref,
-      completed: !this.props.todo.completed,
-    });
+      completed: !this.props.todo.completed
+    })
   }
-  onRemoveClick() {
+  onRemoveClick () {
     this.props.signals.app.list.removeTodoClicked({
-      ref: this.props.todo.$ref,
-    });
+      ref: this.props.todo.$ref
+    })
   }
-  onNewTitleBlur() {
+  onNewTitleBlur () {
     this.props.signals.app.list.newTitleAborted({
-      ref: this.props.todo.$ref,
-    });
+      ref: this.props.todo.$ref
+    })
   }
-  edit() {
+  edit () {
     if (this.props.todo.$isSaving) {
-      return;
+      return
     }
 
     this.props.signals.app.list.todoDoubleClicked({
-      ref: this.props.todo.$ref,
-    });
+      ref: this.props.todo.$ref
+    })
 
     // FOCUS fix
     setTimeout(() => {
-      const input = this.refs.edit;
-      input.focus();
-      input.value = input.value;
-    }, 0);
+      const input = this.refs.edit
+      input.focus()
+      input.value = input.value
+    }, 0)
   }
-  edit() {
-    if (this.props.todo.$isSaving) {
-      return;
-    }
-
-    this.props.signals.app.list.todoDoubleClicked({
-      ref: this.props.todo.$ref,
-    });
-
-    // FOCUS fix
-    setTimeout(() => {
-      const input = this.refs.edit;
-      input.focus();
-      input.value = input.value;
-    }, 0);
-  }
-  render() {
+  render () {
     const className = classNames({
       completed: this.props.todo.completed,
-      editing: this.props.todo.$isEditing,
-    });
+      editing: this.props.todo.$isEditing
+    })
 
     return (
       <li className={className}>
-        <div className="view">
+        <div className='view'>
           {
-            this.props.todo.$isSaving ?
-            null :
-            <input
-              className="toggle"
-              type="checkbox"
-              disabled={this.props.todo.$isSaving}
-              onChange={() => this.onCompletedToggle()}
-              checked={this.props.todo.completed}
-            />
+            this.props.todo.$isSaving
+            ? null
+              : <input
+                className='toggle'
+                type='checkbox'
+                disabled={this.props.todo.$isSaving}
+                onChange={() => this.onCompletedToggle()}
+                checked={this.props.todo.completed} />
           }
           <label onDoubleClick={() => this.edit()}>
-            {this.props.todo.title} {this.props.todo.$isSaving ?
-              <small>(saving)</small> :
-              null
+            {this.props.todo.title} {this.props.todo.$isSaving
+              ? <small>(saving)</small>
+              : null
             }
           </label>
           {
-            this.props.todo.$isSaving ?
-            null :
-            <button
-              className="destroy"
-              onClick={() => this.onRemoveClick()}
-            />
+            this.props.todo.$isSaving
+            ? null
+              : <button
+                className='destroy'
+                onClick={() => this.onRemoveClick()} />
           }
         </div>
         <form onSubmit={(e) => this.onNewTitleSubmit(e)}>
           <input
-            ref="edit"
-            className="edit"
+            ref='edit'
+            className='edit'
             value={this.props.todo.$newTitle || this.props.todo.title}
             onBlur={() => this.onNewTitleBlur()}
             onChange={(e) => this.onNewTitleChange(e)}
           />
         </form>
       </li>
-    );
+    )
   }
 
 }
 
-export default Todo;
+export default Todo

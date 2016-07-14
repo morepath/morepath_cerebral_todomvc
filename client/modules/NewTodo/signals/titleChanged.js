@@ -1,8 +1,8 @@
-import setTitle from '../actions/setTitle.js';
+import setTitle from '../actions/setTitle.js'
 
 export default {
   chain: [
-    setTitle,
+    setTitle
   ],
-  immediate: true,
-};
+  immediate: true
+}

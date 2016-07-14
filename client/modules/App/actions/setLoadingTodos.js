@@ -1,5 +1,5 @@
-function setLoadingTodos({state}) {
-  state.set(['app.list.todos.isLoading'], true);
+function setLoadingTodos ({state}) {
+  state.set(['app.list.todos.isLoading'], true)
 }
 
-export default setLoadingTodos;
+export default setLoadingTodos

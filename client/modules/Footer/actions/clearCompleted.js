@@ -1,7 +1,7 @@
-function clearCompleted({input}) {
+function clearCompleted ({input}) {
   input.completedTodos.forEach((todo) => {
-    todo.unset();
-  });
+    todo.unset()
+  })
 }
 
-export default clearCompleted;
+export default clearCompleted

@@ -1,12 +1,12 @@
-function deleteCompleted({input, output, services}) {
+function deleteCompleted ({input, output, services}) {
   input.completedTodos.forEach((todo) => {
-    const url = todo.get('@id');
+    const url = todo.get('@id')
     services.http.delete(url)
       .then(output.success)
-      .catch(output.error);
-  });
+      .catch(output.error)
+  })
 }
 
-deleteCompleted.async = true;
+deleteCompleted.async = true
 
-export default deleteCompleted;
+export default deleteCompleted

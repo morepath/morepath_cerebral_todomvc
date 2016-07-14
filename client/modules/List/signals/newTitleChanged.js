@@ -1,8 +1,8 @@
-import setTodoNewTitle from '../actions/setTodoNewTitle.js';
+import setTodoNewTitle from '../actions/setTodoNewTitle.js'
 
 export default {
   chain: [
-    setTodoNewTitle,
+    setTodoNewTitle
   ],
-  immediate: true,
-};
+  immediate: true
+}
