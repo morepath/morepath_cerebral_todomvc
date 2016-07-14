@@ -1,8 +1,8 @@
-import NewTodo from '../NewTodo'
-import List from '../List'
-import Footer from '../Footer'
+import NewTodo from '../new'
+import List from '../list'
+import Footer from '../footer'
 
-import appMounted from './signals/appMounted'
+import setTodos from './chains/setTodos'
 
 export default () => {
   return (module, controller) => {
@@ -13,7 +13,8 @@ export default () => {
     })
 
     module.addSignals({
-      appMounted})
+      appMounted: setTodos
+    })
 
     controller.on('modulesLoaded', () => {
       controller.getSignals().app.appMounted({}, {immediate: true})

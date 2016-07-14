@@ -1,20 +1,21 @@
-import Controller from 'cerebral'
-import Model from 'cerebral-model-baobab'
-import HttpModule from 'cerebral-module-http'
-import RouterModule from 'cerebral-module-router'
-import DevtoolsModule from 'cerebral-module-devtools'
+import {Controller} from 'cerebral'
+import Model from 'cerebral/models/immutable'
 
-import AppModule from './modules/App'
-import RefsModule from './modules/Refs'
+import AppModule from './modules/app'
+
+import Refs from './modules/refs'
+import Devtools from 'cerebral-module-devtools'
+import Http from 'cerebral-module-http'
+import Router from 'cerebral-module-router'
 
 const controller = Controller(Model({}))
 
 controller.addModules({
   app: AppModule(),
-  refs: RefsModule(),
-  http: HttpModule(),
-  devtools: DevtoolsModule(),
-  router: RouterModule({
+  refs: Refs(),
+  http: Http(),
+  devtools: Devtools(),
+  router: Router({
     '/': 'app.footer.filterClicked'
   }, {
     mapper: {query: true}

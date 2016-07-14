@@ -10,7 +10,8 @@ function getCompleted ({state, output}) {
   })
 
   output({
-  completedTodos})
+    completedTodos
+  })
 }
 
 export default getCompleted

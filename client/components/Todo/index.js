@@ -1,13 +1,23 @@
 import React from 'react'
 import classNames from 'classnames'
-import {Decorator as Cerebral} from 'cerebral-view-react'
+import { connect } from 'cerebral-view-react'
 
-@Cerebral()
-class Todo extends React.Component {
+export default connect(props => ({
+  todo: `app.list.todos.${props.todoKey}`
+}), class Todo extends React.Component {
   componentDidUpdate (prevProps) {
     if (!prevProps.todo.$isEditing && this.props.todo.$isEditing) {
       this.refs.edit.focus()
     }
+  }
+  edit () {
+    if (this.props.todo.$isSaving) {
+      return
+    }
+
+    this.props.signals.app.list.todoDoubleClicked({
+      ref: this.props.todo.$ref
+    })
   }
   onNewTitleChange (event) {
     this.props.signals.app.list.newTitleChanged({
@@ -37,22 +47,6 @@ class Todo extends React.Component {
       ref: this.props.todo.$ref
     })
   }
-  edit () {
-    if (this.props.todo.$isSaving) {
-      return
-    }
-
-    this.props.signals.app.list.todoDoubleClicked({
-      ref: this.props.todo.$ref
-    })
-
-    // FOCUS fix
-    setTimeout(() => {
-      const input = this.refs.edit
-      input.focus()
-      input.value = input.value
-    }, 0)
-  }
   render () {
     const className = classNames({
       completed: this.props.todo.completed,
@@ -65,12 +59,12 @@ class Todo extends React.Component {
           {
             this.props.todo.$isSaving
             ? null
-              : <input
-                className='toggle'
-                type='checkbox'
-                disabled={this.props.todo.$isSaving}
-                onChange={() => this.onCompletedToggle()}
-                checked={this.props.todo.completed} />
+            : <input
+              className='toggle'
+              type='checkbox'
+              disabled={this.props.todo.$isSaving}
+              onChange={() => this.onCompletedToggle()}
+              checked={this.props.todo.completed} />
           }
           <label onDoubleClick={() => this.edit()}>
             {this.props.todo.title} {this.props.todo.$isSaving
@@ -81,9 +75,9 @@ class Todo extends React.Component {
           {
             this.props.todo.$isSaving
             ? null
-              : <button
-                className='destroy'
-                onClick={() => this.onRemoveClick()} />
+            : <button
+              className='destroy'
+              onClick={() => this.onRemoveClick()} />
           }
         </div>
         <form onSubmit={(e) => this.onNewTitleSubmit(e)}>
@@ -98,7 +92,4 @@ class Todo extends React.Component {
       </li>
     )
   }
-
-}
-
-export default Todo
+})
