@@ -1,12 +1,17 @@
-import add from '../actions/addTodo.js'
-import save from '../actions/saveTodo.js'
+import set from 'cerebral/operators/set'
+
+import getNextRef from '../actions/getNextRef'
+import createTodoRecord from '../actions/createTodoRecord.js'
+import postTodo from '../actions/postTodo.js'
 import updateTodo from '../actions/updateTodo.js'
-import setError from '../actions/setError.js'
+import markTodoFailed from '../actions/markTodoFailed.js'
 
 export default [
-  add,
-  save, {
+  getNextRef,
+  createTodoRecord,
+  set('app.new.title', ''),
+  postTodo, {
     success: [updateTodo],
-    error: [setError]
+    error: [markTodoFailed]
   }
 ]

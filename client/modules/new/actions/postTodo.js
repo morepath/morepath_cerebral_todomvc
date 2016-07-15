@@ -1,4 +1,4 @@
-function saveTodo ({input, state, output, services}) {
+function postTodo ({input, state, output, services}) {
   const todo = state.get(`app.list.todos.${input.ref}`)
 
   services.http.post('/api/todos', todo)
@@ -6,6 +6,6 @@ function saveTodo ({input, state, output, services}) {
     .catch(output.error)
 }
 
-saveTodo.async = true
+postTodo.async = true
 
-export default saveTodo
+export default postTodo
