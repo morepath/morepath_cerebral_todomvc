@@ -18,7 +18,7 @@ controller.addModules({
   router: Router({
     '/': 'app.footer.filterClicked'
   }, {
-    mapper: {query: true}
+    query: true
   })
 })
 

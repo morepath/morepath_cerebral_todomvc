@@ -21952,7 +21952,7 @@
 	  router: (0, _cerebralModuleRouter2.default)({
 	    '/': 'app.footer.filterClicked'
 	  }, {
-	    mapper: { query: true }
+	    query: true
 	  })
 	});
 	
