@@ -26,7 +26,7 @@ setup(
     zip_safe=False,
     platforms='any',
     install_requires=[
-        'morepath>=0.14',
+        'morepath>=0.15',
     ],
     extras_require=dict(
         test=[
