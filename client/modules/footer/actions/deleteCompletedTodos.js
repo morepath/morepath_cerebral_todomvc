@@ -1,6 +1,6 @@
-function deleteCompleted ({input, output, services}) {
-  input.completedTodos.forEach((todo) => {
-    const url = todo.get('@id')
+function deleteCompleted ({input, state, output, services}) {
+  input.completedTodosKeys.forEach((key) => {
+    const url = state.get(`app.list.todos.${key}.@id`)
     services.http.delete(url)
       .then(output.success)
       .catch(output.error)

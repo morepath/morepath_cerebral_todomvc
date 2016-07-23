@@ -31412,17 +31412,16 @@
 	  var output = _ref.output;
 	
 	  var todos = state.get('app.list.todos');
-	  var completedTodos = [];
+	  var completedTodosKeys = [];
 	
 	  Object.keys(todos).forEach(function (key) {
 	    if (todos[key].completed && !todos[key].$isSaving) {
-	      var todo = state.select('app.list.todos.' + key);
-	      completedTodos.push(todo);
+	      completedTodosKeys.push(key);
 	    }
 	  });
 	
 	  output({
-	    completedTodos: completedTodos
+	    completedTodosKeys: completedTodosKeys
 	  });
 	}
 	
@@ -31432,18 +31431,19 @@
 /* 350 */
 /***/ function(module, exports) {
 
-	'use strict';
+	"use strict";
 	
 	Object.defineProperty(exports, "__esModule", {
 	  value: true
 	});
 	function deleteCompleted(_ref) {
 	  var input = _ref.input;
+	  var state = _ref.state;
 	  var output = _ref.output;
 	  var services = _ref.services;
 	
-	  input.completedTodos.forEach(function (todo) {
-	    var url = todo.get('@id');
+	  input.completedTodosKeys.forEach(function (key) {
+	    var url = state.get("app.list.todos." + key + ".@id");
 	    services.http.delete(url).then(output.success).catch(output.error);
 	  });
 	}
@@ -31463,9 +31463,10 @@
 	});
 	function clearCompleted(_ref) {
 	  var input = _ref.input;
+	  var state = _ref.state;
 	
-	  input.completedTodos.forEach(function (todo) {
-	    todo.unset();
+	  input.completedTodosKeys.forEach(function (key) {
+	    state.unset("app.list.todos." + key);
 	  });
 	}
 	

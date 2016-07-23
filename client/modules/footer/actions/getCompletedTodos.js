@@ -1,16 +1,15 @@
 function getCompleted ({state, output}) {
   const todos = state.get('app.list.todos')
-  const completedTodos = []
+  const completedTodosKeys = []
 
   Object.keys(todos).forEach((key) => {
     if (todos[key].completed && !todos[key].$isSaving) {
-      const todo = state.select(`app.list.todos.${key}`)
-      completedTodos.push(todo)
+      completedTodosKeys.push(key)
     }
   })
 
   output({
-    completedTodos
+    completedTodosKeys
   })
 }
 
