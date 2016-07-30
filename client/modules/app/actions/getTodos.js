@@ -5,5 +5,6 @@ function getTodos ({services, output}) {
 }
 
 getTodos.async = true
+getTodos.outputs = ['success', 'error']
 
 export default getTodos

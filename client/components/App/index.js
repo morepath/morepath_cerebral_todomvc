@@ -3,13 +3,12 @@ import { connect } from 'cerebral-view-react'
 import NewTodoForm from '../NewTodo'
 import TodosList from '../List'
 import TodosFooter from '../Footer'
-import visibleTodosKeys from '../../computed/visibleTodosKeys.js'
+import visibleTodosRefs from '../../computed/visibleTodosRefs'
 
 export default connect({
-  todos: 'app.list.todos',
-  isLoading: ['app.list.todos.isLoading'],
-  isSaving: 'app.new.isSaving',
-  visibleTodosKeys: visibleTodosKeys()
+  todos: 'app.todos',
+  isSaving: 'app.isSaving',
+  visibleTodosRefs: visibleTodosRefs()
 },
   function App (props) {
     return (
@@ -20,7 +19,7 @@ export default connect({
             <NewTodoForm />
           </header>
 
-          {props.visibleTodosKeys.length ? <TodosList /> : null}
+          {props.visibleTodosRefs.length ? <TodosList /> : null}
           {Object.keys(props.todos).length ? <TodosFooter /> : null}
         </section>
         <footer className='info'>

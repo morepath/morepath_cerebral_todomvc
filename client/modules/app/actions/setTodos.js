@@ -1,10 +1,10 @@
+import uuid from 'uuid'
+
 function setTodos ({input, state, services}) {
   input.result.todos.forEach((todo) => {
-    const ref = services.refs.next(state)
-    todo.$ref = ref
+    const ref = uuid.v4()
     todo.$isSaving = false
-
-    state.set(`app.list.todos.${ref}`, todo)
+    state.set(`app.todos.${ref}`, todo)
   })
 }
 
