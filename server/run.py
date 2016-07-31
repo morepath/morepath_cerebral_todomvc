@@ -1,6 +1,5 @@
 import morepath
 import webob
-from webob.exc import HTTPNotFound
 from webob.static import DirectoryApp, FileApp
 from .app import App
 
@@ -13,16 +12,13 @@ def run():   # pragma: no cover
     app = App()
 
     @webob.dec.wsgify
-    def morepath_with_static(request):
-        if request.path_info_peek() == '':
-            return request.get_response(index)
-
+    def morepath_with_static_absorb(request):
         popped = request.path_info_pop()
         if popped == 'api':
             return request.get_response(app)
         elif popped == 'static':
             return request.get_response(static)
+        else:
+            return request.get_response(index)
 
-        raise HTTPNotFound()
-
-    morepath.run(morepath_with_static)
+    morepath.run(morepath_with_static_absorb)
