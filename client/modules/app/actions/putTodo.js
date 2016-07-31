@@ -2,7 +2,7 @@ function putTodo ({input, state, output, services}) {
   const todo = state.select(`app.todos.${input.ref}`)
   const url = todo.get('@id')
   const title = todo.get('$newTitle') || todo.get('title')
-  const completed = input.completed || todo.get('completed')
+  const completed = typeof input.completed === 'boolean' ? input.completed : todo.get('completed')
   const todoObj = {
     title,
     completed
