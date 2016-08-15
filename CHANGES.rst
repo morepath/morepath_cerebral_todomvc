@@ -1,7 +1,7 @@
 CHANGES
 *******
 
-0.2 (unreleased)
+0.2 (2016-08-15)
 ================
 
 - Add support for Python 3.5 and make it the default test environment.
