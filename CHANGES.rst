@@ -8,7 +8,7 @@ CHANGES
 
 - Apply standard js code style in client.
 
-- Upgrade to Cerebral 0.35 and update dependencies.
+- Upgrade to Cerebral 1.0 and update dependencies.
 
 - Refactor client to new Cerebral best practices.
 

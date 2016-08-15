@@ -7,7 +7,10 @@
     "url": "git+https://github.com/morepath/morepath_cerebral_todomvc.git"
   },
   "keywords": [
-    "cerebral", "morepath", "todomvc", "REST"
+    "cerebral",
+    "morepath",
+    "todomvc",
+    "REST"
   ],
   "author": "Henri Hulski <henri.hulski@gazeta.pl>",
   "license": "MIT",
@@ -21,14 +24,15 @@
     "test": "standard"
   },
   "dependencies": {
-    "babel-core": "^6.11.4",
+    "babel-core": "^6.13.2",
     "babel-loader": "^6.2.4",
-    "babel-preset-es2015": "^6.9.0",
+    "babel-preset-es2015": "^6.13.2",
     "babel-preset-react": "^6.11.1",
-    "cerebral": "^0.35.7",
-    "cerebral-module-devtools": "^0.7.0",
-    "cerebral-module-router": "^0.16.1",
-    "cerebral-view-react": "^0.12.8",
+    "cerebral": "^1.0.1",
+    "cerebral-module-devtools": "^0.7.1",
+    "cerebral-module-http": "^0.4.5",
+    "cerebral-module-router": "^0.17.1",
+    "cerebral-view-react": "^0.12.11",
     "classnames": "^2.2.5",
     "css-loader": "^0.23.1",
     "file-loader": "^0.9.0",
@@ -52,6 +56,9 @@
     ]
   },
   "babel": {
-    "presets": ["es2015", "react"]
+    "presets": [
+      "es2015",
+      "react"
+    ]
   }
 }

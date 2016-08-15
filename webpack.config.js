@@ -2,7 +2,7 @@ var path = require('path');
 var src = path.resolve(__dirname, 'client');
 var dist = path.resolve(__dirname, 'static');
 
-module.exports = {
+var config = {
   entry: path.resolve(src, 'main.js'),
   devtool: 'source-map',
   output: {
@@ -11,19 +11,22 @@ module.exports = {
   },
   module: {
     loaders: [{
-      test: /\.css?$/,
+      test: /\.css$/,
       loader: 'style!css'
-    },
-    {
-      test: /\.js?$/,
-      include: src,
+    }, {
+      test: /\.js$/,
       loader: 'babel',
-      query: {
-        cacheDirectory: true,
-        "presets": ["react", "es2015", "stage-0"],
-        "plugins": ["transform-decorators-legacy"]
-      }
-
+      include: src
     }]
   },
-};
+  resolve: {
+    extensions: [ '', '.js', '.jsx' ],
+    fallback: path.join(__dirname, 'node_modules')
+  },
+
+  resolveLoader: {
+    root: path.join(__dirname, 'node_modules')
+  }
+}
+
+module.exports = config
