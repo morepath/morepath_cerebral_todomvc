@@ -8,8 +8,8 @@ description = (
     'Morepath example of using React & Cerebral'
 )
 long_description = (
-    io.open('README.rst', encoding='utf-8').read() + '\n\n' +
-    io.open('CHANGES.rst', encoding='utf-8').read())
+    io.open('README.rst', encoding='utf-8').read() + '\n\n'
+    + io.open('CHANGES.rst', encoding='utf-8').read())
 version = '0.3.dev0'
 
 setup(
@@ -43,13 +43,14 @@ setup(
             'run-app = server.run:run',
         ],
     ),
+    python_requires=">= 3.6",
     classifiers=[
         'Intended Audience :: Developers',
         'Environment :: Web Environment',
         'License :: OSI Approved :: BSD License',
         'Topic :: Internet :: WWW/HTTP :: WSGI',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ]
 )
