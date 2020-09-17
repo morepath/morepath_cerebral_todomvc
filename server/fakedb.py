@@ -27,6 +27,7 @@ class Todo(object):
         self.title = title
         self.completed = completed
 
+
 list = List()
 
 
@@ -36,5 +37,6 @@ def reset_list():
     list.add(Todo('Test', False))
     list.add(Todo('Document', False))
     list.add(Todo('Release', False))
+
 
 reset_list()
