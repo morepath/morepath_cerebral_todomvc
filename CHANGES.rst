@@ -6,9 +6,11 @@ CHANGES
 
 - Drop support for Python 2.7, 3.4, 3.5.
 
-- Add support for Python 3.6, 3.7, 3.8.
+- Add support for Python 3.6, 3.7, 3.8, 3.9.
 
 - Fix Flake 8 errors.
+
+- Use GitHub actions for CI.
 
 
 0.2 (2016-08-15)

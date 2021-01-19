@@ -1,4 +1,4 @@
-class List(object):
+class List:
     def __init__(self):
         self.clear()
 
@@ -22,7 +22,7 @@ class List(object):
         return self._todos.values()
 
 
-class Todo(object):
+class Todo:
     def __init__(self, title, completed):
         self.title = title
         self.completed = completed
@@ -33,10 +33,10 @@ list = List()
 
 def reset_list():
     list.clear()
-    list.add(Todo('Code', True))
-    list.add(Todo('Test', False))
-    list.add(Todo('Document', False))
-    list.add(Todo('Release', False))
+    list.add(Todo("Code", True))
+    list.add(Todo("Test", False))
+    list.add(Todo("Document", False))
+    list.add(Todo("Release", False))
 
 
 reset_list()
