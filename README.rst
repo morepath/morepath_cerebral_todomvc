@@ -1,3 +1,17 @@
+.. image:: https://github.com/morepath/morepath_cerebral_todomvc/workflows/CI/badge.svg?branch=master
+   :target: https://github.com/morepath/morepath_cerebral_todomvc/actions?workflow=CI
+   :alt: CI Status
+
+.. image:: https://coveralls.io/repos/github/morepath/morepath_cerebral_todomvc/badge.svg?branch=master
+    :target: https://coveralls.io/github/morepath/morepath_cerebral_todomvc?branch=master
+
+.. image:: https://img.shields.io/pypi/v/morepath_cerebral_todomvc.svg
+  :target: https://pypi.org/project/morepath_cerebral_todomvc/
+
+.. image:: https://img.shields.io/pypi/pyversions/morepath_cerebral_todomvc.svg
+  :target: https://pypi.org/project/morepath_cerebral_todomvc/
+
+
 TodoMVC based on Morepath and Cerebral
 ======================================
 
